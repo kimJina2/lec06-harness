@@ -82,12 +82,22 @@ export default function Lecture() {
     return texts.join(' ')
   }
 
+  async function proxyFetch(url) {
+    // allorigins: JSON 래핑 방식
+    const r1 = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`)
+    if (r1.ok) {
+      const j = await r1.json()
+      if (j?.contents) return j.contents
+    }
+    // corsproxy: 직접 방식
+    const r2 = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(url)}`)
+    if (r2.ok) return r2.text()
+    throw new Error(`프록시 접근 실패 (${r2.status})`)
+  }
+
   async function fetchYoutubeClient(videoId) {
-    const proxy = 'https://corsproxy.io/?url='
     const ytUrl = `https://www.youtube.com/watch?v=${videoId}&hl=en`
-    const resp  = await fetch(proxy + encodeURIComponent(ytUrl))
-    if (!resp.ok) throw new Error(`YouTube 접근 실패 (${resp.status})`)
-    const html = await resp.text()
+    const html  = await proxyFetch(ytUrl)
 
     const m = html.match(/"captionTracks":\s*(\[[\s\S]*?\])\s*,\s*"/)
     if (!m) throw new Error('이 영상에 자막이 없습니다.')
@@ -96,8 +106,7 @@ export default function Lecture() {
     const track  = tracks.find(t => t.languageCode?.startsWith('en')) || tracks[0]
     if (!track?.baseUrl) throw new Error('자막 URL을 찾을 수 없습니다.')
 
-    const vttResp = await fetch(proxy + encodeURIComponent(track.baseUrl + '&fmt=vtt'))
-    const vtt     = await vttResp.text()
+    const vtt = await proxyFetch(track.baseUrl + '&fmt=vtt')
     return { transcript: parseVtt(vtt), videoId }
   }
 
