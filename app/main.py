@@ -514,6 +514,37 @@ def _parse_transcript_list(transcript_list) -> str:
     return " ".join(texts)
 
 
+def _fetch_transcript_supadata(video_id: str) -> tuple[str, str]:
+    """Supadata API로 자막 가져오기 — 클라우드 IP 차단을 우회하는 전용 서비스."""
+    api_key = os.environ.get("SUPADATA_API_KEY")
+    if not api_key:
+        raise ValueError("SUPADATA_API_KEY 환경변수가 설정되지 않았습니다.")
+
+    resp = requests.get(
+        "https://api.supadata.ai/v1/youtube/transcript",
+        params={"videoId": video_id, "text": "true"},
+        headers={"x-api-key": api_key},
+        timeout=30,
+    )
+    if resp.status_code == 401:
+        raise ValueError("Supadata API 키가 유효하지 않습니다.")
+    if resp.status_code == 404:
+        raise ValueError("이 영상에서 자막을 찾을 수 없습니다.")
+    resp.raise_for_status()
+
+    data = resp.json()
+    content = data.get("content", "")
+    if isinstance(content, list):
+        text = " ".join(item.get("text", "") for item in content if item.get("text"))
+    else:
+        text = str(content)
+
+    if not text:
+        raise ValueError("자막 없음")
+
+    return text, video_id
+
+
 def _fetch_transcript_youtube_api(video_id: str) -> tuple[str, str]:
     """youtube-transcript-api로 자막을 가져옵니다."""
     try:
@@ -568,15 +599,27 @@ async def fetch_youtube_transcript(req: YouTubeRequest):
             None, _fetch_transcript_innertube, video_id
         )
         return {"transcript": transcript, "video_id": video_id}
-    except Exception as e:
-        # InnerTube 실패 시 yt-dlp 폴백
-        try:
-            transcript, vid = await loop.run_in_executor(
-                None, _fetch_transcript_ytdlp, req.url
-            )
-            return {"transcript": transcript, "video_id": vid}
-        except Exception as e2:
-            return {"error": str(e2)}
+    except Exception:
+        pass
+
+    # yt-dlp 폴백
+    try:
+        transcript, vid = await loop.run_in_executor(
+            None, _fetch_transcript_ytdlp, req.url
+        )
+        return {"transcript": transcript, "video_id": vid}
+    except Exception as e2:
+        print(f"[yt-dlp 폴백 실패] {e2}", flush=True)
+
+    # Supadata 폴백 (클라우드 IP 차단 우회 전용)
+    try:
+        transcript, vid = await loop.run_in_executor(
+            None, _fetch_transcript_supadata, video_id
+        )
+        return {"transcript": transcript, "video_id": vid}
+    except Exception as e3:
+        print(f"[Supadata 폴백 실패] {e3}", flush=True)
+        return {"error": str(e3)}
 
 
 @app.post("/api/lecture/analyze")
