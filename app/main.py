@@ -394,12 +394,20 @@ def _fetch_transcript_innertube(video_id: str) -> str:
 
 
 def _fetch_transcript_ytdlp(url: str) -> tuple[str, str]:
-    """yt-dlp Python API로 자막 다운로드. 클라우드 IP 차단 우회."""
+    """yt-dlp Python API로 자막 다운로드. 실패 시 CLI 또는 youtube-transcript-api로 폴백."""
     video_id = _extract_video_id(url) or "unknown"
 
     try:
         import yt_dlp
-        return _fetch_transcript_ytdlp_api(url, video_id, yt_dlp)
+        try:
+            return _fetch_transcript_ytdlp_api(url, video_id, yt_dlp)
+        except Exception:
+            if shutil.which("yt-dlp"):
+                try:
+                    return _fetch_transcript_ytdlp_cli(url, video_id)
+                except Exception:
+                    return _fetch_transcript_youtube_api(video_id)
+            return _fetch_transcript_youtube_api(video_id)
     except ModuleNotFoundError:
         if shutil.which("yt-dlp"):
             return _fetch_transcript_ytdlp_cli(url, video_id)
