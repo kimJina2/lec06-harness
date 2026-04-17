@@ -39,6 +39,16 @@ else:
 
 print(f"[설정] 환경={APP_ENV} | 모델={MODEL}")
 
+# YouTube 쿠키 파일 (YOUTUBE_COOKIES 환경변수 → 임시 파일로 저장)
+COOKIES_FILE: str | None = None
+_cookies_raw = os.environ.get("YOUTUBE_COOKIES", "").strip()
+if _cookies_raw:
+    _cf = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+    _cf.write(_cookies_raw)
+    _cf.close()
+    COOKIES_FILE = _cf.name
+    print(f"[설정] YouTube 쿠키 로드됨 → {COOKIES_FILE}")
+
 # ── System Prompts ────────────────────────────────────────────────────────────
 # 로컬(Groq 무료)용 — 토큰 절약을 위해 간결하게
 
@@ -435,6 +445,8 @@ def _fetch_transcript_ytdlp_api(url: str, video_id: str, yt_dlp_module) -> tuple
         proxy = _get_default_proxy_url()
         if proxy:
             ydl_opts["proxy"] = proxy
+        if COOKIES_FILE:
+            ydl_opts["cookiefile"] = COOKIES_FILE
 
         with yt_dlp_module.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -473,6 +485,7 @@ def _fetch_transcript_ytdlp_cli(url: str, video_id: str) -> tuple[str, str]:
             "--no-playlist",
             "--extractor-args",
             "youtube:player_client=tv_embedded,web_creator,ios",
+            *(["--cookies", COOKIES_FILE] if COOKIES_FILE else []),
             "-o",
             out_tmpl,
             url,
