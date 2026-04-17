@@ -8,7 +8,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import re
 from openai import OpenAI
-from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+import subprocess
+import tempfile
 
 app = FastAPI(title="Harness Web App")
 
@@ -241,6 +242,64 @@ def _extract_video_id(url: str) -> str | None:
     return None
 
 
+def _parse_vtt(content: str) -> str:
+    """VTT 자막 파일을 평문으로 변환."""
+    texts = []
+    for line in content.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith(("WEBVTT", "NOTE", "Kind:", "Language:", "X-TIMESTAMP")):
+            continue
+        if "-->" in line or re.match(r"^\d+$", line):
+            continue
+        text = re.sub(r"<[^>]+>", "", line)
+        text = re.sub(r"&amp;", "&", text).replace("&lt;", "<").replace("&gt;", ">").strip()
+        if text:
+            texts.append(text)
+    # 연속 중복 제거 (VTT 특성상 같은 줄 반복)
+    deduped: list[str] = []
+    for t in texts:
+        if not deduped or deduped[-1] != t:
+            deduped.append(t)
+    return " ".join(deduped)
+
+
+def _fetch_transcript_ytdlp(url: str) -> tuple[str, str]:
+    """yt-dlp로 자막 다운로드. 클라우드 IP 차단 우회."""
+    video_id = _extract_video_id(url) or "unknown"
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out_tmpl = os.path.join(tmpdir, "%(id)s")
+        result = subprocess.run(
+            [
+                "yt-dlp",
+                "--write-auto-sub", "--write-sub",
+                "--sub-lang", "ko,en,en-US,ja,zh-Hans",
+                "--sub-format", "vtt",
+                "--skip-download", "--no-playlist",
+                "-o", out_tmpl,
+                url,
+            ],
+            capture_output=True, text=True, timeout=60,
+        )
+        vtt_files = [f for f in os.listdir(tmpdir) if f.endswith(".vtt")]
+        if not vtt_files:
+            stderr = result.stderr or ""
+            if "No video" in stderr or "not a" in stderr.lower():
+                raise ValueError("유효하지 않은 YouTube URL입니다.")
+            raise ValueError("이 영상에서 자막을 찾을 수 없습니다. 자막이 없는 영상일 수 있습니다.")
+
+        def lang_priority(f: str) -> int:
+            if ".ko." in f or ".ko-" in f: return 0
+            if ".en." in f or ".en-" in f: return 1
+            return 2
+
+        vtt_files.sort(key=lang_priority)
+        with open(os.path.join(tmpdir, vtt_files[0]), encoding="utf-8") as f:
+            content = f.read()
+        return _parse_vtt(content), video_id
+
+
 @app.post("/api/lecture/youtube")
 async def fetch_youtube_transcript(req: YouTubeRequest):
     video_id = _extract_video_id(req.url)
@@ -249,23 +308,14 @@ async def fetch_youtube_transcript(req: YouTubeRequest):
 
     loop = asyncio.get_event_loop()
     try:
-        def _fetch():
-            api = YouTubeTranscriptApi()
-            # 한국어 → 영어 순서로 시도, 없으면 목록에서 첫 번째 자막 사용
-            try:
-                return api.fetch(video_id, languages=["ko", "en"])
-            except NoTranscriptFound:
-                transcript_list = api.list(video_id)
-                transcript = next(iter(transcript_list))
-                return transcript.fetch()
-
-
-        segments = await loop.run_in_executor(None, _fetch)
-        text = " ".join(s.text.replace("\n", " ") for s in segments)
-        return {"transcript": text, "video_id": video_id}
-
-    except TranscriptsDisabled:
-        return {"error": "이 영상은 자막이 비활성화되어 있습니다."}
+        transcript, vid = await loop.run_in_executor(
+            None, _fetch_transcript_ytdlp, req.url
+        )
+        return {"transcript": transcript, "video_id": vid}
+    except ValueError as e:
+        return {"error": str(e)}
+    except subprocess.TimeoutExpired:
+        return {"error": "자막 가져오기 시간 초과. 다시 시도해주세요."}
     except Exception as e:
         return {"error": f"자막을 가져올 수 없습니다: {str(e)}"}
 
