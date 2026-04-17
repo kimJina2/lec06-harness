@@ -467,6 +467,27 @@ a { color: inherit; text-decoration: none; }
   font-size: 0.88rem;
   font-weight: 600;
 }
+.manual-guide {
+  background: #fff8e1;
+  border: 1px solid #f59e0b;
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  font-size: 0.88rem;
+}
+.manual-guide-title {
+  font-weight: 700;
+  color: #b45309;
+  margin-bottom: 8px;
+}
+.manual-guide-steps {
+  margin: 0;
+  padding-left: 20px;
+  color: #78350f;
+  line-height: 1.8;
+}
+.manual-guide-steps strong {
+  color: #b45309;
+}
 
 /* ── Meme Result ── */
 .translation-main {

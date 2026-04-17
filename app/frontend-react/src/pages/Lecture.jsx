@@ -127,12 +127,7 @@ export default function Lecture() {
     } catch { /* 폴백 */ }
 
     // 모두 실패 → 수동 입력 안내
-    setYoutubeError(
-      'YouTube 자막을 자동으로 가져올 수 없습니다. ' +
-      '아래 방법으로 자막을 직접 붙여넣어 주세요:\n' +
-      '① YouTube에서 영상 재생 → 영상 아래 ⋯ → "스크립트 열기"\n' +
-      '② 텍스트 전체 복사 → 아래 입력창에 붙여넣기'
-    )
+    setYoutubeError('__manual__')
     setYoutubeLoading(false)
   }
 
@@ -264,8 +259,20 @@ export default function Lecture() {
               </button>
             </div>
 
-            {youtubeError && (
-              <div className="error-msg" style={{ whiteSpace: 'pre-line' }}>{youtubeError}</div>
+            {youtubeError && youtubeError !== '__manual__' && (
+              <div className="error-msg">{youtubeError}</div>
+            )}
+            {youtubeError === '__manual__' && (
+              <div className="manual-guide">
+                <div className="manual-guide-title">⚠️ YouTube 서버 차단 — 직접 붙여넣기 필요</div>
+                <ol className="manual-guide-steps">
+                  <li>YouTube에서 영상 재생</li>
+                  <li>영상 아래 <strong>⋯</strong> 버튼 클릭</li>
+                  <li><strong>"스크립트 열기"</strong> 선택</li>
+                  <li>텍스트 전체 선택 후 복사</li>
+                  <li>아래 입력창에 붙여넣기 후 <strong>"강의 분석 시작"</strong></li>
+                </ol>
+              </div>
             )}
 
             {/* 영상 미리보기 */}
