@@ -38,7 +38,9 @@ def _fetch(video_id: str) -> str:
     if not track or not track.get("baseUrl"):
         raise ValueError("자막 URL 없음")
 
-    vtt_req = urllib.request.Request(track["baseUrl"] + "&fmt=vtt", headers={"User-Agent": UA})
+    vtt_req = urllib.request.Request(
+        track["baseUrl"] + "&fmt=vtt", headers={"User-Agent": UA}
+    )
     with urllib.request.urlopen(vtt_req, timeout=15) as r:
         vtt = r.read().decode("utf-8", errors="ignore")
 
@@ -51,15 +53,15 @@ class handler(BaseHTTPRequestHandler):
         video_id = (params.get("v") or [None])[0]
 
         if not video_id:
-            self._respond(400, {"error": "Missing v parameter"})
+            self._json(400, {"error": "Missing v parameter"})
             return
         try:
             transcript = _fetch(video_id)
-            self._respond(200, {"transcript": transcript, "video_id": video_id})
+            self._json(200, {"transcript": transcript, "video_id": video_id})
         except Exception as e:
-            self._respond(500, {"error": str(e)})
+            self._json(500, {"error": str(e)})
 
-    def _respond(self, code: int, body: dict):
+    def _json(self, code: int, body: dict):
         data = json.dumps(body, ensure_ascii=False).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json")

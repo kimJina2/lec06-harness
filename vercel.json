@@ -1,7 +1,5 @@
 {
-  "functions": {
-    "api/transcript.py": {
-      "maxDuration": 30
-    }
-  }
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" }
+  ]
 }
