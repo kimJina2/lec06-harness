@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>코드 튜토리얼 생성기 — Harness AI</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">⚡ Harness AI</a>
+  <div class="nav-links">
+    <a href="/meme" class="nav-link">🌐 밈 번역</a>
+    <a href="/code" class="nav-link active">💻 코드 튜토리얼</a>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="page-header">
+    <div class="icon">💻</div>
+    <h1>코드 튜토리얼 생성기</h1>
+    <p>해외 개발자 영상 자막, 코드 스니펫, 또는 코드 설명 텍스트를 붙여넣으면 한국어 주석 코드와 기술 블로그 포스트를 자동으로 생성합니다.</p>
+  </div>
+
+  <div class="input-card">
+    <div class="section-title">코드 또는 영상 자막 입력</div>
+    <textarea id="inputText" style="min-height:200px" placeholder="예시:&#10;- 해외 개발자 영상 자막 텍스트 붙여넣기&#10;- 또는 코드 스니펫 직접 입력&#10;&#10;def async_fetch(url):&#10;    async with aiohttp.ClientSession() as session:&#10;        async with session.get(url) as response:&#10;            return await response.json()"></textarea>
+    <button class="btn btn-primary" id="generateBtn" onclick="generate()">
+      <span>튜토리얼 생성</span>
+      <span>→</span>
+    </button>
+  </div>
+
+  <div id="resultSection" class="result-card hidden">
+    <div class="result-header">
+      <span>튜토리얼 결과</span>
+      <div id="streamStatus" class="streaming-indicator">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <span>Claude가 분석 중...</span>
+      </div>
+    </div>
+    <div class="result-body">
+      <div id="errorMsg" class="error-msg hidden"></div>
+      <div id="streamingPreview" class="hidden" style="background:var(--surface2);border-radius:8px;padding:16px;font-size:0.85rem;font-family:monospace;white-space:pre-wrap;color:var(--text-dim);max-height:200px;overflow-y:auto;margin-bottom:16px"></div>
+      <div id="codeResult" class="code-result hidden">
+
+        <div id="metaSection"></div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tab active" onclick="switchTab('commented')">📝 주석 코드</button>
+          <button class="tab" onclick="switchTab('original')">📄 원본 코드</button>
+          <button class="tab" onclick="switchTab('blog')">📰 블로그 포스트</button>
+        </div>
+
+        <div id="tab-commented" class="tab-panel">
+          <div class="code-block">
+            <div class="code-block-header">
+              <span id="commentedLang">코드</span>
+              <button class="copy-btn" onclick="copyCode('commentedCode')">복사</button>
+            </div>
+            <pre><code id="commentedCode"></code></pre>
+          </div>
+        </div>
+
+        <div id="tab-original" class="tab-panel hidden">
+          <div class="code-block">
+            <div class="code-block-header">
+              <span id="originalLang">원본 코드</span>
+              <button class="copy-btn" onclick="copyCode('originalCode')">복사</button>
+            </div>
+            <pre><code id="originalCode"></code></pre>
+          </div>
+        </div>
+
+        <div id="tab-blog" class="tab-panel hidden">
+          <div class="result-header" style="border-top:1px solid var(--border)">
+            <span>블로그 포스트 미리보기</span>
+            <button class="copy-btn" onclick="copyBlog()">마크다운 복사</button>
+          </div>
+          <div class="blog-content" id="blogContent"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let fullResponse = '';
+let blogRaw = '';
+
+// Simple markdown renderer
+function renderMarkdown(md) {
+  return md
+    .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+      `<pre><code class="lang-${lang}">${esc(code.trim())}</code></pre>`)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/^(?!<[h1-6ulpbli])/gm, '')
+    .replace(/^(.+)$/gm, (m) => {
+      if (/^</.test(m)) return m;
+      return `<p>${m}</p>`;
+    });
+}
+
+function switchTab(name) {
+  ['commented', 'original', 'blog'].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== name);
+  });
+  document.querySelectorAll('.tab').forEach((btn, i) => {
+    const names = ['commented', 'original', 'blog'];
+    btn.classList.toggle('active', names[i] === name);
+  });
+}
+
+async function generate() {
+  const text = document.getElementById('inputText').value.trim();
+  if (!text) return;
+
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span>생성 중...</span>';
+
+  const resultSection = document.getElementById('resultSection');
+  const streamStatus = document.getElementById('streamStatus');
+  const errorMsg = document.getElementById('errorMsg');
+  const codeResult = document.getElementById('codeResult');
+  const streamingPreview = document.getElementById('streamingPreview');
+
+  resultSection.classList.remove('hidden');
+  streamStatus.classList.remove('hidden');
+  errorMsg.classList.add('hidden');
+  codeResult.classList.add('hidden');
+  streamingPreview.classList.remove('hidden');
+  streamingPreview.textContent = '';
+  fullResponse = '';
+
+  try {
+    const response = await fetch('/api/code-tutorial', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // 마지막 불완전한 줄은 다음 청크까지 보류
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.error) {
+            streamStatus.classList.add('hidden');
+            streamingPreview.classList.add('hidden');
+            errorMsg.classList.remove('hidden');
+            errorMsg.textContent = 'API 오류: ' + data.error;
+            return;
+          }
+          if (data.chunk) {
+            fullResponse += data.chunk;
+            streamingPreview.textContent += data.chunk;
+            streamingPreview.scrollTop = streamingPreview.scrollHeight;
+          }
+          if (data.done) {
+            streamingPreview.classList.add('hidden');
+            renderCodeResult(data.full);
+          }
+        } catch (e) { /* 불완전한 JSON 줄 무시 */ }
+      }
+    }
+  } catch (e) {
+    streamStatus.classList.add('hidden');
+    errorMsg.classList.remove('hidden');
+    errorMsg.textContent = '오류가 발생했습니다: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>튜토리얼 생성</span><span>→</span>';
+  }
+}
+
+function renderCodeResult(raw) {
+  const streamStatus = document.getElementById('streamStatus');
+  const codeResult = document.getElementById('codeResult');
+  const errorMsg = document.getElementById('errorMsg');
+
+  streamStatus.classList.add('hidden');
+
+  try {
+    let jsonStr = raw;
+    const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) jsonStr = jsonMatch[1];
+    else {
+      const braceStart = raw.indexOf('{');
+      const braceEnd = raw.lastIndexOf('}');
+      if (braceStart !== -1 && braceEnd !== -1) jsonStr = raw.slice(braceStart, braceEnd + 1);
+    }
+
+    const d = JSON.parse(jsonStr);
+    blogRaw = d.blog_post || '';
+
+    // Meta chips
+    const meta = d.metadata || {};
+    const packages = (meta.packages || []).join(', ') || '없음';
+    document.getElementById('metaSection').innerHTML = `
+      <div class="meta-row" style="margin-bottom:16px">
+        ${meta.language ? `<span class="meta-chip lang">${esc(meta.language)}</span>` : ''}
+        ${meta.framework ? `<span class="meta-chip lang">${esc(meta.framework)}</span>` : ''}
+        <span class="meta-chip ${meta.completeness === '완전' ? 'complete' : 'incomplete'}">${esc(meta.completeness || '불완전')}</span>
+        ${meta.topic ? `<span class="meta-chip" style="color:var(--text-dim)">${esc(meta.topic)}</span>` : ''}
+      </div>
+      ${packages !== '없음' ? `<div class="analysis-item" style="margin-bottom:16px"><div class="label">필요 패키지</div><div class="value" style="font-family:monospace;font-size:0.85rem">${esc(packages)}</div></div>` : ''}
+    `;
+
+    // Commented code
+    document.getElementById('commentedCode').textContent = d.commented_code || '';
+    document.getElementById('commentedLang').textContent = `${meta.language || 'Code'} (주석 포함)`;
+
+    // Original code
+    document.getElementById('originalCode').textContent = d.original_code || '';
+    document.getElementById('originalLang').textContent = `${meta.language || 'Code'} (원본)`;
+
+    // Blog
+    document.getElementById('blogContent').innerHTML = renderMarkdown(blogRaw);
+
+    codeResult.classList.remove('hidden');
+    switchTab('commented');
+  } catch (e) {
+    codeResult.innerHTML = `<div class="analysis-item"><div class="label">응답</div><div class="value" style="white-space:pre-wrap;font-size:0.85rem">${esc(raw)}</div></div>`;
+    codeResult.classList.remove('hidden');
+  }
+}
+
+function copyCode(id) {
+  const code = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = event.target;
+    btn.textContent = '복사됨 ✓';
+    setTimeout(() => btn.textContent = '복사', 2000);
+  });
+}
+
+function copyBlog() {
+  navigator.clipboard.writeText(blogRaw).then(() => {
+    const btn = event.target;
+    btn.textContent = '복사됨 ✓';
+    setTimeout(() => btn.textContent = '마크다운 복사', 2000);
+  });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+document.getElementById('inputText').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) generate();
+});
+</script>
+
+</body>
+</html>

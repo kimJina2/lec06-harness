@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>서비스 소개 — Harness AI</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .intro-section {
+      max-width: 780px;
+      margin: 0 auto 60px;
+      padding: 0 24px;
+    }
+
+    .section-label {
+      display: inline-block;
+      background: rgba(124,111,247,0.12);
+      color: var(--accent);
+      border: 1px solid rgba(124,111,247,0.25);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      margin-bottom: 14px;
+    }
+
+    .intro-section h2 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+      line-height: 1.3;
+    }
+
+    .intro-section p {
+      color: var(--text-dim);
+      font-size: 1rem;
+      line-height: 1.85;
+      margin-bottom: 16px;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 48px auto;
+      max-width: 780px;
+    }
+
+    /* 문제/해결 박스 */
+    .problem-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    @media (max-width: 600px) { .problem-grid { grid-template-columns: 1fr; } }
+
+    .problem-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .problem-box .box-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      margin-bottom: 10px;
+    }
+
+    .problem-box.before .box-label { color: var(--red); }
+    .problem-box.after .box-label { color: var(--green); }
+
+    .problem-box ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .problem-box ul li {
+      font-size: 0.9rem;
+      color: var(--text-dim);
+      padding-left: 18px;
+      position: relative;
+      line-height: 1.5;
+    }
+
+    .problem-box.before ul li::before { content: "✗"; position: absolute; left: 0; color: var(--red); }
+    .problem-box.after ul li::before { content: "✓"; position: absolute; left: 0; color: var(--green); }
+
+    /* 기능 카드 */
+    .feature-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-top: 20px;
+    }
+
+    .feature-block .feat-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .feat-icon {
+      font-size: 2rem;
+      width: 52px;
+      height: 52px;
+      background: var(--surface2);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .feat-title { font-size: 1.2rem; font-weight: 700; }
+    .feat-sub { font-size: 0.85rem; color: var(--text-dim); margin-top: 2px; }
+
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .step {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .step-num {
+      width: 24px;
+      height: 24px;
+      background: var(--accent);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .step-content { font-size: 0.9rem; color: var(--text-dim); line-height: 1.6; padding-top: 2px; }
+    .step-content strong { color: var(--text); }
+
+    /* 파이프라인 */
+    .pipeline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .pipe-node {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .pipe-arrow { color: var(--text-dim); font-size: 1rem; }
+
+    /* CTA */
+    .cta-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 28px;
+    }
+
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+
+    .cta-primary { background: var(--accent); color: white; }
+    .cta-primary:hover { background: #6a5ee0; }
+    .cta-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .cta-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* 기술 스택 */
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .tech-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .tech-item .t-icon { font-size: 1.6rem; margin-bottom: 6px; }
+    .tech-item .t-name { font-size: 0.85rem; font-weight: 700; }
+    .tech-item .t-desc { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">⚡ Harness AI</a>
+  <div class="nav-links">
+    <a href="/introduce" class="nav-link active">📖 소개</a>
+    <a href="/meme" class="nav-link">🌐 밈 번역</a>
+    <a href="/lecture" class="nav-link">🎓 강의 Q&A</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero" style="padding-bottom:40px">
+  <h1>Harness AI 소개</h1>
+  <p>해외 콘텐츠의 언어 장벽을 AI로 허무는<br>두 가지 도구를 소개합니다.</p>
+</div>
+
+<!-- 1. 왜 만들었나 -->
+<div class="intro-section">
+  <div class="section-label">WHY</div>
+  <h2>왜 만들었나요?</h2>
+  <p>
+    해외의 좋은 기술 강의, 유머 넘치는 밈 콘텐츠는 넘쳐나지만, 언어 장벽 때문에 제대로 즐기지 못하는 경우가 많습니다.
+    단순히 번역하는 것만으로는 부족합니다. 밈은 감정 톤까지 살려야 웃기고, 강의는 이해가 되어야 배울 수 있습니다.
+  </p>
+  <p>
+    Harness AI는 Claude와 OpenRouter를 활용한 <strong>에이전트 파이프라인</strong>으로,
+    번역을 넘어 <strong>문화적 맥락까지 이해</strong>하는 AI 도구입니다.
+  </p>
+
+  <div class="problem-grid">
+    <div class="problem-box before">
+      <div class="box-label">기존 방식의 문제</div>
+      <ul>
+        <li>구글 번역은 밈의 뉘앙스를 살리지 못함</li>
+        <li>해외 강의를 보면서 메모하고 정리하는 데 시간 낭비</li>
+        <li>모르는 개념이 나와도 혼자 검색해야 함</li>
+        <li>자막이 빠르게 지나가면 따라가기 어려움</li>
+      </ul>
+    </div>
+    <div class="problem-box after">
+      <div class="box-label">Harness AI의 해결</div>
+      <ul>
+        <li>감정 톤이 같은 한국 신조어로 초월번역</li>
+        <li>YouTube URL 하나로 강의 내용 즉시 분석</li>
+        <li>강의 내용 기반으로 질문하면 바로 답변</li>
+        <li>핵심 개념·FAQ 자동 추출로 빠른 복습</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- 2. 기능 소개 -->
+<div class="intro-section">
+  <div class="section-label">FEATURES</div>
+  <h2>두 가지 핵심 기능</h2>
+
+  <!-- 밈 번역 -->
+  <div class="feature-block">
+    <div class="feat-header">
+      <div class="feat-icon">🌐</div>
+      <div>
+        <div class="feat-title">밈 초월번역기</div>
+        <div class="feat-sub">해외 밈·슬랭 → 한국 신조어 초월번역</div>
+      </div>
+    </div>
+
+    <div class="step-list">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content"><strong>번역할 표현 입력</strong> — "no cap fr fr", "it's giving main character energy" 등 해외 밈·슬랭을 입력합니다.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content"><strong>3단계 AI 파이프라인 자동 실행</strong> — 맥락 분석 → 한국 신조어 매핑 → 적절성 검수 순으로 처리됩니다.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content"><strong>결과 확인</strong> — 최종 번역, 후보 3개, 유래·감정 톤 분석, 플랫폼별 사용 가능 여부를 한눈에 확인합니다.</div>
+      </div>
+    </div>
+
+    <div class="pipeline">
+      <div class="pipe-node">🔍 Slang Decoder</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node">📡 Trend Monitor</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node">✅ Sensitivity Checker</div>
+    </div>
+
+    <div class="cta-row">
+      <a href="/meme" class="cta-btn cta-primary">밈 번역기 사용하기 →</a>
+    </div>
+  </div>
+
+  <!-- 강의 Q&A -->
+  <div class="feature-block" style="margin-top:16px">
+    <div class="feat-header">
+      <div class="feat-icon">🎓</div>
+      <div>
+        <div class="feat-title">강의 인터랙티브 Q&A</div>
+        <div class="feat-sub">YouTube 강의 → AI 러닝 파트너</div>
+      </div>
+    </div>
+
+    <div class="step-list">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content"><strong>YouTube URL 입력</strong> — 해외 대학 강의, 기술 세미나 영상 링크를 붙여넣으면 자막이 자동으로 불러와집니다.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content"><strong>강의 분석 시작</strong> — AI가 자막을 구조화하고 핵심 개념·FAQ·학습 경로를 자동으로 추출합니다.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content"><strong>질문하며 학습</strong> — 궁금한 개념을 채팅으로 질문하면 강의 내용을 근거로 한국어로 답변해줍니다. 대화 히스토리가 유지되어 자연스러운 학습이 가능합니다.</div>
+      </div>
+    </div>
+
+    <div class="pipeline">
+      <div class="pipe-node">🎙 Transcription Agent</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node">🧠 Knowledge Graph</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-node">💬 Q&A Agent</div>
+    </div>
+
+    <div class="cta-row">
+      <a href="/lecture" class="cta-btn cta-primary">강의 Q&A 사용하기 →</a>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- 3. 기술 스택 -->
+<div class="intro-section">
+  <div class="section-label">TECH STACK</div>
+  <h2>사용된 기술</h2>
+  <p>에이전트 파이프라인 아키텍처로 각 단계를 전문 AI 에이전트가 담당합니다.</p>
+
+  <div class="tech-grid">
+    <div class="tech-item">
+      <div class="t-icon">🤖</div>
+      <div class="t-name">Claude AI</div>
+      <div class="t-desc">Anthropic 언어 모델</div>
+    </div>
+    <div class="tech-item">
+      <div class="t-icon">🔀</div>
+      <div class="t-name">OpenRouter</div>
+      <div class="t-desc">배포 환경 AI 게이트웨이</div>
+    </div>
+    <div class="tech-item">
+      <div class="t-icon">⚡</div>
+      <div class="t-name">Groq</div>
+      <div class="t-desc">로컬 테스트 무료 추론</div>
+    </div>
+    <div class="tech-item">
+      <div class="t-icon">🐍</div>
+      <div class="t-name">FastAPI</div>
+      <div class="t-desc">Python 백엔드 서버</div>
+    </div>
+    <div class="tech-item">
+      <div class="t-icon">📡</div>
+      <div class="t-name">SSE 스트리밍</div>
+      <div class="t-desc">실시간 응답 전송</div>
+    </div>
+    <div class="tech-item">
+      <div class="t-icon">📹</div>
+      <div class="t-name">YouTube Transcript API</div>
+      <div class="t-desc">자막 자동 수집</div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- 4. 사용 환경 -->
+<div class="intro-section">
+  <div class="section-label">GUIDE</div>
+  <h2>사용 환경 안내</h2>
+
+  <div class="problem-grid">
+    <div class="problem-box">
+      <div class="box-label" style="color:var(--accent)">🖥 로컬 테스트 (무료)</div>
+      <ul style="list-style:none;padding:0">
+        <li style="padding-left:0;color:var(--text-dim);font-size:0.88rem;line-height:1.7">Groq API를 사용합니다.<br>무료이며 분당 요청 제한이 있습니다.<br><br>실행: <code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:0.82rem">APP_ENV=local GROQ_API_KEY=... uvicorn main:app</code></li>
+      </ul>
+    </div>
+    <div class="problem-box">
+      <div class="box-label" style="color:var(--accent2)">🚀 배포 (OpenRouter)</div>
+      <ul style="list-style:none;padding:0">
+        <li style="padding-left:0;color:var(--text-dim);font-size:0.88rem;line-height:1.7">OpenRouter + Claude Haiku를 사용합니다.<br>요청당 약 $0.001~0.02 과금됩니다.<br><br>실행: <code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:0.82rem">APP_ENV=production OPENROUTER_API_KEY=... uvicorn main:app</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="cta-row">
+    <a href="/meme" class="cta-btn cta-primary">🌐 밈 번역 시작</a>
+    <a href="/lecture" class="cta-btn cta-secondary">🎓 강의 Q&A 시작</a>
+  </div>
+</div>
+
+</body>
+</html>

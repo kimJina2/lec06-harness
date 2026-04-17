@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>밈 초월번역기 — Harness AI</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">⚡ Harness AI</a>
+  <div class="nav-links">
+    <a href="/introduce" class="nav-link">📖 소개</a>
+    <a href="/meme" class="nav-link active">🌐 밈 번역</a>
+    <a href="/lecture" class="nav-link">🎓 강의 Q&A</a>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="page-header">
+    <div class="icon">🌐</div>
+    <h1>밈 초월번역기</h1>
+    <p>해외 밈·슬랭을 한국 최신 신조어로 번역합니다. Slang-Decoder → Trend-Monitor → Sensitivity-Checker 파이프라인이 순차 실행됩니다.</p>
+  </div>
+
+  <div class="input-card">
+    <div class="section-title">번역할 표현 입력</div>
+    <textarea id="inputText" placeholder="예시: &quot;it's giving main character energy&quot; 또는 &quot;no cap fr fr&quot; 또는 여러 줄의 자막 텍스트..."></textarea>
+    <button class="btn btn-primary" id="translateBtn" onclick="runTranslate()">
+      <span>번역 시작</span>
+      <span>→</span>
+    </button>
+  </div>
+
+  <div id="resultSection" class="result-card hidden">
+    <div class="result-header">
+      <span>번역 결과</span>
+      <div id="streamStatus" class="streaming-indicator">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <span>Claude가 분석 중...</span>
+      </div>
+    </div>
+    <div class="result-body">
+      <div id="errorMsg" class="error-msg hidden"></div>
+      <div id="streamingPreview" class="hidden" style="background:var(--surface2);border-radius:8px;padding:16px;font-size:0.85rem;font-family:monospace;white-space:pre-wrap;color:var(--text-dim);max-height:200px;overflow-y:auto;margin-bottom:16px"></div>
+      <div id="memeResult" class="meme-result hidden"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let fullResponse = '';
+
+async function runTranslate() {
+  const text = document.getElementById('inputText').value.trim();
+  if (!text) return;
+
+  const btn = document.getElementById('translateBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span>번역 중...</span>';
+
+  const resultSection = document.getElementById('resultSection');
+  const streamStatus = document.getElementById('streamStatus');
+  const errorMsg = document.getElementById('errorMsg');
+  const memeResult = document.getElementById('memeResult');
+
+  const streamingPreview = document.getElementById('streamingPreview');
+
+  resultSection.classList.remove('hidden');
+  streamStatus.classList.remove('hidden');
+  errorMsg.classList.add('hidden');
+  memeResult.classList.add('hidden');
+  streamingPreview.classList.remove('hidden');
+  streamingPreview.textContent = '';
+  fullResponse = '';
+
+  try {
+    const response = await fetch('/api/meme-translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // 마지막 불완전한 줄은 다음 청크까지 보류
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.error) {
+            streamStatus.classList.add('hidden');
+            streamingPreview.classList.add('hidden');
+            errorMsg.classList.remove('hidden');
+            errorMsg.textContent = 'API 오류: ' + data.error;
+            return;
+          }
+          if (data.chunk) {
+            fullResponse += data.chunk;
+            streamingPreview.textContent += data.chunk;
+            streamingPreview.scrollTop = streamingPreview.scrollHeight;
+          }
+          if (data.done) {
+            streamingPreview.classList.add('hidden');
+            renderMemeResult(data.full);
+          }
+        } catch (e) { /* 불완전한 JSON 줄 무시 */ }
+      }
+    }
+  } catch (e) {
+    streamStatus.classList.add('hidden');
+    errorMsg.classList.remove('hidden');
+    errorMsg.textContent = '오류가 발생했습니다: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>번역 시작</span><span>→</span>';
+  }
+}
+
+function renderMemeResult(raw) {
+  const streamStatus = document.getElementById('streamStatus');
+  const memeResult = document.getElementById('memeResult');
+  const errorMsg = document.getElementById('errorMsg');
+
+  streamStatus.classList.add('hidden');
+
+  try {
+    // Extract JSON from the response (handle possible markdown code blocks)
+    let jsonStr = raw;
+    const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) jsonStr = jsonMatch[1];
+    else {
+      const braceStart = raw.indexOf('{');
+      const braceEnd = raw.lastIndexOf('}');
+      if (braceStart !== -1 && braceEnd !== -1) jsonStr = raw.slice(braceStart, braceEnd + 1);
+    }
+
+    const d = JSON.parse(jsonStr);
+
+    const gradeClass = { '통과': 'grade-pass', '주의': 'grade-caution', '수정됨': 'grade-modified' };
+    const gradeIcon = { '통과': '✅', '주의': '⚠️', '수정됨': '🔄' };
+    const grade = d.final?.grade || '통과';
+
+    const platformHtml = d.final?.platforms ? Object.entries({
+      'YouTube 일반': d.final.platforms.youtube_general,
+      'YouTube 성인': d.final.platforms.youtube_adult,
+      '틱톡/인스타': d.final.platforms.tiktok_instagram
+    }).map(([name, ok]) =>
+      `<span class="platform-tag ${ok ? 'platform-ok' : 'platform-no'}">${ok ? '✓' : '✗'} ${name}</span>`
+    ).join('') : '';
+
+    const candidatesHtml = (d.candidates || []).map((c, i) => `
+      <div class="candidate">
+        <div class="rank">${i + 1}</div>
+        <div>
+          <div class="cand-text">${esc(c.text)}</div>
+          <div class="cand-reason">${esc(c.reason || '')}</div>
+        </div>
+      </div>
+    `).join('');
+
+    memeResult.innerHTML = `
+      <div class="translation-main">
+        <div class="original">${esc(d.original || '')}</div>
+        <div class="final">${esc(d.final?.translation || '')}</div>
+        <span class="grade-badge ${gradeClass[grade] || 'grade-pass'}">${gradeIcon[grade] || '✅'} ${grade}</span>
+      </div>
+
+      <div>
+        <div class="section-title">맥락 분석</div>
+        <div class="analysis-grid">
+          <div class="analysis-item">
+            <div class="label">직역</div>
+            <div class="value">${esc(d.analysis?.literal || '-')}</div>
+          </div>
+          <div class="analysis-item">
+            <div class="label">감정 톤</div>
+            <div class="value">${esc(d.analysis?.tone || '-')}</div>
+          </div>
+          <div class="analysis-item">
+            <div class="label">실제 의미</div>
+            <div class="value">${esc(d.analysis?.real_meaning || '-')}</div>
+          </div>
+          <div class="analysis-item">
+            <div class="label">유래</div>
+            <div class="value">${esc(d.analysis?.origin || '-')}</div>
+          </div>
+        </div>
+      </div>
+
+      ${candidatesHtml ? `<div><div class="section-title">번역 후보</div><div class="candidates">${candidatesHtml}</div></div>` : ''}
+
+      ${d.final?.note ? `<div class="analysis-item"><div class="label">검수 노트</div><div class="value">${esc(d.final.note)}</div></div>` : ''}
+
+      ${platformHtml ? `<div><div class="section-title">플랫폼별 사용 가능 여부</div><div class="platform-row">${platformHtml}</div></div>` : ''}
+    `;
+
+    memeResult.classList.remove('hidden');
+  } catch (e) {
+    // Fallback: show raw text if JSON parse fails
+    memeResult.innerHTML = `<div class="analysis-item"><div class="label">응답</div><div class="value" style="white-space:pre-wrap">${esc(raw)}</div></div>`;
+    memeResult.classList.remove('hidden');
+  }
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+document.getElementById('inputText').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) runTranslate();
+});
+</script>
+
+</body>
+</html>

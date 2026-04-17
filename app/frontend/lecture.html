@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>강의 인터랙티브 Q&A — Harness AI</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 768px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    /* 왼쪽 패널 */
+    .side-panel { position: sticky; top: 80px; }
+
+    .knowledge-summary {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 0.85rem;
+      line-height: 1.7;
+      margin-top: 12px;
+    }
+
+    .concept-chip {
+      display: inline-block;
+      background: rgba(124,111,247,0.12);
+      color: var(--accent);
+      border: 1px solid rgba(124,111,247,0.25);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      margin: 3px 2px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .concept-chip:hover {
+      background: rgba(124,111,247,0.25);
+    }
+
+    .faq-item {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+    .faq-item:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* 오른쪽 채팅 패널 */
+    .chat-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .chat-messages {
+      min-height: 300px;
+      max-height: 520px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    .msg {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .msg-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+
+    .msg-user .msg-avatar { background: var(--accent); }
+    .msg-ai .msg-avatar { background: var(--surface2); border: 1px solid var(--border); }
+
+    .msg-user { flex-direction: row-reverse; }
+    .msg-user .msg-bubble {
+      background: var(--accent);
+      color: white;
+      border-radius: 16px 4px 16px 16px;
+    }
+    .msg-ai .msg-bubble {
+      background: var(--surface2);
+      border-radius: 4px 16px 16px 16px;
+    }
+
+    .msg-bubble {
+      padding: 12px 16px;
+      font-size: 0.9rem;
+      line-height: 1.7;
+      max-width: 80%;
+    }
+
+    .msg-bubble strong { display: block; margin-top: 8px; margin-bottom: 2px; }
+    .msg-bubble strong:first-child { margin-top: 0; }
+
+    .chat-input-row {
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 var(--radius) var(--radius);
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .chat-input-row textarea {
+      flex: 1;
+      border: none;
+      border-radius: 0;
+      min-height: 52px;
+      max-height: 120px;
+      padding: 14px 16px;
+      resize: none;
+      font-size: 0.95rem;
+    }
+
+    .chat-input-row textarea:focus { border-color: transparent; }
+
+    .send-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 0 20px;
+      font-size: 1.2rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+    }
+    .send-btn:hover { background: #6a5ee0; }
+    .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .empty-chat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      text-align: center;
+      gap: 8px;
+      padding: 40px 0;
+    }
+    .empty-chat .icon { font-size: 2.5rem; }
+
+    .typing-indicator {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .typing-bubble {
+      background: var(--surface2);
+      border-radius: 4px 16px 16px 16px;
+      padding: 12px 16px;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      white-space: pre-wrap;
+      max-width: 80%;
+      line-height: 1.7;
+    }
+
+    .load-btn-row { margin-top: 12px; display: flex; gap: 8px; }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .status-loaded { background: rgba(74,222,128,0.12); color: var(--green); }
+    .status-idle { background: var(--surface2); color: var(--text-dim); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">⚡ Harness AI</a>
+  <div class="nav-links">
+    <a href="/introduce" class="nav-link">📖 소개</a>
+    <a href="/meme" class="nav-link">🌐 밈 번역</a>
+    <a href="/lecture" class="nav-link active">🎓 강의 Q&A</a>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="page-header">
+    <div class="icon">🎓</div>
+    <h1>강의 인터랙티브 Q&A</h1>
+    <p>해외 강의·세미나 자막을 붙여넣고 질문하면 강의 내용을 근거로 답변해드립니다.</p>
+  </div>
+
+  <!-- 자막 입력 섹션 -->
+  <div id="uploadSection" class="input-card" style="margin-bottom:24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="section-title" style="margin:0">강의 자막 입력</div>
+      <span id="statusBadge" class="status-badge status-idle">대기 중</span>
+    </div>
+
+    <!-- YouTube URL 입력 -->
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input id="youtubeUrl" type="text"
+        placeholder="YouTube URL 붙여넣기 (예: https://youtube.com/watch?v=...)"
+        style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 14px;font-size:0.9rem;outline:none;transition:border-color 0.2s"
+        onfocus="this.style.borderColor='var(--accent)'"
+        onblur="this.style.borderColor='var(--border)'"
+        onkeydown="if(event.key==='Enter') fetchYoutube()"
+      />
+      <button class="btn btn-primary" id="youtubeBtn" onclick="fetchYoutube()" style="margin-top:0;white-space:nowrap">
+        자막 가져오기
+      </button>
+    </div>
+    <div id="youtubeError" class="error-msg hidden" style="margin-bottom:10px"></div>
+
+    <!-- 영상 썸네일 + 자막 미리보기 -->
+    <div id="videoPreviewCard" class="hidden" style="display:none;background:var(--surface2);border-radius:10px;overflow:hidden;margin-bottom:12px;border:1px solid var(--border)">
+      <div style="display:grid;grid-template-columns:200px 1fr;gap:0">
+        <div style="position:relative">
+          <img id="videoThumb" src="" alt="썸네일" style="width:100%;height:130px;object-fit:cover;display:block">
+          <a id="videoLink" href="#" target="_blank"
+            style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);opacity:0;transition:opacity 0.2s"
+            onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">
+            <span style="background:rgba(0,0,0,0.7);color:white;padding:6px 12px;border-radius:6px;font-size:0.8rem">▶ YouTube에서 보기</span>
+          </a>
+        </div>
+        <div style="padding:12px 16px;display:flex;flex-direction:column;justify-content:space-between">
+          <div>
+            <div style="font-size:0.75rem;color:var(--accent);font-weight:700;margin-bottom:4px">YOUTUBE 강의</div>
+            <div id="transcriptPreviewText" style="font-size:0.82rem;color:var(--text-dim);line-height:1.6;max-height:72px;overflow:hidden"></div>
+          </div>
+          <div id="transcriptLength" style="font-size:0.75rem;color:var(--text-dim);margin-top:6px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center;color:var(--text-dim);font-size:0.8rem;margin-bottom:10px">— 또는 직접 붙여넣기 —</div>
+
+    <textarea id="transcriptInput" style="min-height:100px" placeholder="강의 자막 또는 텍스트를 직접 붙여넣으세요."></textarea>
+    <div class="load-btn-row">
+      <button class="btn btn-primary" id="loadBtn" onclick="loadLecture()">
+        <span>강의 분석 시작</span> <span>→</span>
+      </button>
+      <button class="btn" id="resetBtn" onclick="resetLecture()" style="background:var(--surface2);color:var(--text-dim);display:none">
+        새 강의 불러오기
+      </button>
+    </div>
+    <div id="analyzePreview" class="hidden" style="margin-top:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:0.8rem;font-family:monospace;color:var(--text-dim);white-space:pre-wrap;max-height:120px;overflow-y:auto"></div>
+  </div>
+
+  <!-- 메인 레이아웃 -->
+  <div class="layout">
+
+    <!-- 왼쪽: 지식 베이스 패널 -->
+    <div class="side-panel">
+      <div class="input-card" id="knowledgePanel" style="display:none">
+
+        <div class="section-title">강의 요약</div>
+        <div class="knowledge-summary" id="lectureSummary"></div>
+
+        <div class="section-title" style="margin-top:16px">핵심 개념</div>
+        <div id="conceptChips"></div>
+
+        <div class="section-title" style="margin-top:16px">자주 묻는 질문 <span id="faqCount" style="color:var(--accent);font-weight:700"></span></div>
+        <div id="faqList"></div>
+
+      </div>
+      <div id="knowledgePlaceholder" class="input-card" style="color:var(--text-dim);font-size:0.9rem;text-align:center;padding:32px 16px">
+        <div style="font-size:2rem;margin-bottom:8px">📚</div>
+        강의를 불러오면<br>지식 베이스가 여기에 표시됩니다.
+      </div>
+    </div>
+
+    <!-- 오른쪽: 채팅 패널 -->
+    <div class="chat-panel">
+      <div class="chat-messages" id="chatMessages">
+        <div class="empty-chat" id="emptyChat">
+          <div class="icon">💬</div>
+          <div>강의를 불러온 후 질문하세요.</div>
+          <div style="font-size:0.8rem;margin-top:4px">예: "async/await가 뭔가요?", "콜백 지옥이란?"</div>
+        </div>
+      </div>
+      <div class="chat-input-row">
+        <textarea id="questionInput" placeholder="강의 내용에 대해 질문하세요... (Enter: 전송, Shift+Enter: 줄바꿈)" disabled></textarea>
+        <button class="send-btn" id="sendBtn" onclick="askQuestion()" disabled>↑</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let knowledgeBase = '';
+let chatHistory = [];
+let lectureLoaded = false;
+let currentVideoId = '';
+
+// ── YouTube 자막 가져오기 ──────────────────────────────────────────────────
+
+async function fetchYoutube() {
+  const url = document.getElementById('youtubeUrl').value.trim();
+  if (!url) return;
+
+  const btn = document.getElementById('youtubeBtn');
+  const errEl = document.getElementById('youtubeError');
+  btn.disabled = true;
+  btn.textContent = '가져오는 중...';
+  errEl.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/lecture/youtube', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      errEl.textContent = data.error;
+      errEl.classList.remove('hidden');
+    } else {
+      document.getElementById('transcriptInput').value = data.transcript;
+      errEl.classList.add('hidden');
+
+      // 썸네일 + 미리보기 카드 표시
+      if (data.video_id) {
+        currentVideoId = data.video_id;
+        const card = document.getElementById('videoPreviewCard');
+        const thumb = document.getElementById('videoThumb');
+        const link = document.getElementById('videoLink');
+        const previewText = document.getElementById('transcriptPreviewText');
+        const lenEl = document.getElementById('transcriptLength');
+
+        thumb.src = `https://img.youtube.com/vi/${data.video_id}/hqdefault.jpg`;
+        link.href = `https://youtube.com/watch?v=${data.video_id}`;
+        previewText.textContent = data.transcript.slice(0, 200) + '...';
+        lenEl.textContent = `전체 자막 ${data.transcript.length.toLocaleString()}자`;
+        card.style.display = 'block';
+        card.classList.remove('hidden');
+      }
+
+      const len = data.transcript.length;
+      btn.textContent = `✓ ${len.toLocaleString()}자 로드됨`;
+      btn.style.background = 'var(--green)';
+      setTimeout(() => {
+        btn.textContent = '자막 가져오기';
+        btn.style.background = '';
+        btn.disabled = false;
+      }, 2000);
+      return;
+    }
+  } catch (e) {
+    errEl.textContent = '네트워크 오류: ' + e.message;
+    errEl.classList.remove('hidden');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '자막 가져오기';
+}
+
+// ── 강의 분석 ──────────────────────────────────────────────────────────────
+
+async function loadLecture() {
+  const transcript = document.getElementById('transcriptInput').value.trim();
+  if (!transcript) return;
+
+  const loadBtn = document.getElementById('loadBtn');
+  const preview = document.getElementById('analyzePreview');
+  const badge = document.getElementById('statusBadge');
+
+  loadBtn.disabled = true;
+  loadBtn.innerHTML = '<span>분석 중...</span>';
+  preview.classList.remove('hidden');
+  preview.textContent = '';
+  badge.className = 'status-badge streaming-indicator';
+  badge.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div> 분석 중';
+
+  let fullText = '';
+  let buffer = '';
+
+  try {
+    const response = await fetch('/api/lecture/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript })
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.error) throw new Error(data.error);
+          if (data.chunk) {
+            fullText += data.chunk;
+            preview.textContent += data.chunk;
+            preview.scrollTop = preview.scrollHeight;
+          }
+          if (data.done) {
+            renderKnowledge(data.full);
+          }
+        } catch (e) { if (e.message && !e.message.includes('JSON')) throw e; }
+      }
+    }
+  } catch (e) {
+    badge.className = 'status-badge';
+    badge.style.color = 'var(--red)';
+    badge.textContent = '오류: ' + e.message;
+    loadBtn.disabled = false;
+    loadBtn.innerHTML = '<span>강의 분석 시작</span><span>→</span>';
+  }
+}
+
+function renderKnowledge(raw) {
+  try {
+    let jsonStr = raw;
+    const match = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (match) jsonStr = match[1];
+    else {
+      const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
+      if (s !== -1 && e !== -1) jsonStr = raw.slice(s, e + 1);
+    }
+
+    const d = JSON.parse(jsonStr);
+    knowledgeBase = jsonStr;
+    lectureLoaded = true;
+
+    // 요약
+    document.getElementById('lectureSummary').textContent = d.summary || '';
+
+    // 핵심 개념 칩
+    const chips = document.getElementById('conceptChips');
+    chips.innerHTML = (d.key_concepts || []).map(c =>
+      `<span class="concept-chip" onclick="fillQuestion('${esc(c.concept)}이(가) 뭔가요?')" title="${esc(c.definition)}">${esc(c.concept)}</span>`
+    ).join('');
+
+    // FAQ — 중요도별 분류, 최대 10개
+    const faqItems = (d.faq || []).slice(0, 10);
+    document.getElementById('faqCount').textContent = `(${faqItems.length})`;
+    const impOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+    faqItems.sort((a, b) => (impOrder[a.importance] ?? 1) - (impOrder[b.importance] ?? 1));
+
+    const impLabel = { HIGH: { icon: '🔴', label: '핵심' }, MEDIUM: { icon: '🟡', label: '중요' }, LOW: { icon: '🔵', label: '참고' } };
+    const faq = document.getElementById('faqList');
+    faq.innerHTML = faqItems.map(f => {
+      const imp = impLabel[f.importance] || impLabel.MEDIUM;
+      return `<div class="faq-item" onclick="fillQuestion('${esc(f.question)}')" title="${esc(f.answer_hint || '')}">
+        <span style="font-size:0.75rem;margin-right:4px">${imp.icon}</span>
+        <span style="font-size:0.72rem;color:var(--text-dim);margin-right:6px">[${imp.label}]</span>${esc(f.question)}
+      </div>`;
+    }).join('');
+
+    // 패널 전환
+    document.getElementById('knowledgePanel').style.display = 'block';
+    document.getElementById('knowledgePlaceholder').style.display = 'none';
+    document.getElementById('analyzePreview').classList.add('hidden');
+
+    // 채팅 활성화
+    document.getElementById('questionInput').disabled = false;
+    document.getElementById('sendBtn').disabled = false;
+    document.getElementById('emptyChat').innerHTML =
+      `<div class="icon">🎓</div><div><strong>${esc(d.title || '강의')}</strong> 로딩 완료</div><div style="font-size:0.8rem;margin-top:4px">아래에 질문을 입력하세요.</div>`;
+
+    // 버튼 상태
+    document.getElementById('loadBtn').style.display = 'none';
+    document.getElementById('resetBtn').style.display = 'inline-flex';
+    document.getElementById('statusBadge').className = 'status-badge status-loaded';
+    document.getElementById('statusBadge').innerHTML = '✓ 로딩 완료';
+    document.getElementById('transcriptInput').disabled = true;
+
+    // 환영 메시지
+    appendAIMessage(`**${esc(d.title || '강의')}** 분석이 완료됐습니다!\n\n${esc(d.summary || '')}\n\n핵심 개념: ${(d.key_concepts || []).slice(0,4).map(c => c.concept).join(', ')}\n\n무엇이든 질문해보세요 😊`);
+
+  } catch (e) {
+    document.getElementById('statusBadge').className = 'status-badge';
+    document.getElementById('statusBadge').style.color = 'var(--red)';
+    document.getElementById('statusBadge').textContent = 'JSON 파싱 오류';
+    document.getElementById('loadBtn').disabled = false;
+    document.getElementById('loadBtn').innerHTML = '<span>강의 분석 시작</span><span>→</span>';
+  }
+}
+
+function resetLecture() {
+  knowledgeBase = '';
+  chatHistory = [];
+  lectureLoaded = false;
+
+  document.getElementById('transcriptInput').value = '';
+  document.getElementById('transcriptInput').disabled = false;
+  document.getElementById('loadBtn').style.display = 'inline-flex';
+  document.getElementById('loadBtn').disabled = false;
+  document.getElementById('loadBtn').innerHTML = '<span>강의 분석 시작</span><span>→</span>';
+  document.getElementById('resetBtn').style.display = 'none';
+  document.getElementById('statusBadge').className = 'status-badge status-idle';
+  document.getElementById('statusBadge').textContent = '대기 중';
+  document.getElementById('knowledgePanel').style.display = 'none';
+  document.getElementById('knowledgePlaceholder').style.display = 'block';
+  document.getElementById('questionInput').disabled = true;
+  document.getElementById('sendBtn').disabled = true;
+  document.getElementById('chatMessages').innerHTML = `
+    <div class="empty-chat" id="emptyChat">
+      <div class="icon">💬</div>
+      <div>강의를 불러온 후 질문하세요.</div>
+    </div>`;
+}
+
+// ── Q&A ───────────────────────────────────────────────────────────────────
+
+async function askQuestion() {
+  const input = document.getElementById('questionInput');
+  const question = input.value.trim();
+  if (!question || !lectureLoaded) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('sendBtn').disabled = true;
+
+  // 사용자 메시지 표시
+  appendUserMessage(question);
+  chatHistory.push({ role: 'user', content: question });
+
+  // AI 타이핑 표시
+  const typingId = appendTypingBubble();
+
+  let fullAnswer = '';
+  let buffer = '';
+
+  try {
+    const response = await fetch('/api/lecture/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        transcript: document.getElementById('transcriptInput').value,
+        knowledge: knowledgeBase,
+        history: chatHistory.slice(-6),
+        question
+      })
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.error) throw new Error(data.error);
+          if (data.chunk) {
+            fullAnswer += data.chunk;
+            updateTypingBubble(typingId, fullAnswer);
+          }
+          if (data.done) {
+            chatHistory.push({ role: 'assistant', content: fullAnswer });
+          }
+        } catch (e) { if (e.message && !e.message.includes('JSON')) throw e; }
+      }
+    }
+  } catch (e) {
+    updateTypingBubble(typingId, '오류가 발생했습니다: ' + e.message);
+  } finally {
+    document.getElementById('sendBtn').disabled = false;
+    input.focus();
+  }
+}
+
+// ── DOM 헬퍼 ───────────────────────────────────────────────────────────────
+
+function appendUserMessage(text) {
+  const el = document.getElementById('chatMessages');
+  const emptyChat = document.getElementById('emptyChat');
+  if (emptyChat) emptyChat.remove();
+
+  const div = document.createElement('div');
+  div.className = 'msg msg-user';
+  div.innerHTML = `
+    <div class="msg-avatar">나</div>
+    <div class="msg-bubble">${esc(text)}</div>
+  `;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function appendAIMessage(text) {
+  const el = document.getElementById('chatMessages');
+  const emptyChat = document.getElementById('emptyChat');
+  if (emptyChat) emptyChat.style.display = 'none';
+
+  const div = document.createElement('div');
+  div.className = 'msg msg-ai';
+  div.innerHTML = `
+    <div class="msg-avatar">AI</div>
+    <div class="msg-bubble">${formatMsg(text)}</div>
+  `;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function appendTypingBubble() {
+  const el = document.getElementById('chatMessages');
+  const id = 'typing-' + Date.now();
+  const div = document.createElement('div');
+  div.className = 'msg msg-ai';
+  div.id = id;
+  div.innerHTML = `
+    <div class="msg-avatar">AI</div>
+    <div class="typing-bubble">
+      <div class="streaming-indicator" style="padding:0;margin:0">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      </div>
+    </div>
+  `;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return id;
+}
+
+function updateTypingBubble(id, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.querySelector('.typing-bubble').innerHTML = formatMsg(text);
+  document.getElementById('chatMessages').scrollTop = 999999;
+}
+
+function formatMsg(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/💡 \*\*(.+?)\*\*/g, '<br><span style="color:var(--accent)">💡 <strong>$1</strong></span>')
+    .replace(/\n/g, '<br>');
+}
+
+function fillQuestion(q) {
+  if (!lectureLoaded) return;
+  const input = document.getElementById('questionInput');
+  input.value = q;
+  input.focus();
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
+}
+
+// Enter 전송
+document.getElementById('questionInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    askQuestion();
+  }
+});
+
+// 자동 높이
+document.getElementById('questionInput').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+</script>
+
+</body>
+</html>
