@@ -1,8 +1,6 @@
 import os
-import sys
 import json
 import asyncio
-import subprocess
 import tempfile
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
@@ -13,6 +11,7 @@ import re
 from urllib.parse import urlparse, parse_qs
 from openai import OpenAI
 import requests
+import yt_dlp
 
 app = FastAPI(title="Harness Web App")
 
@@ -353,27 +352,27 @@ def _fetch_transcript_innertube(video_id: str) -> str:
 
 
 def _fetch_transcript_ytdlp(url: str) -> tuple[str, str]:
-    """yt-dlp로 자막 다운로드. 클라우드 IP 차단 우회."""
+    """yt-dlp Python API로 자막 다운로드. 클라우드 IP 차단 우회."""
     video_id = _extract_video_id(url) or "unknown"
     with tempfile.TemporaryDirectory() as tmpdir:
-        out_tmpl = os.path.join(tmpdir, "%(id)s")
-        result = subprocess.run(
-            [
-                sys.executable, "-m", "yt_dlp",
-                "--write-auto-sub", "--write-sub",
-                "--sub-lang", "ko,en,en-US,ja,zh-Hans",
-                "--sub-format", "vtt",
-                "--skip-download", "--no-playlist",
-                "-o", out_tmpl,
-                url,
-            ],
-            capture_output=True, text=True, timeout=60,
-        )
+        out_tmpl = os.path.join(tmpdir, "%(id)s.%(ext)s")
+        ydl_opts = {
+            "writesubtitles": True,
+            "writeautomaticsub": True,
+            "subtitleslangs": ["all"],
+            "subtitlesformat": "vtt",
+            "skip_download": True,
+            "outtmpl": out_tmpl,
+            "quiet": True,
+            "no_warnings": True,
+            "ignoreerrors": True,
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+
         vtt_files = [f for f in os.listdir(tmpdir) if f.endswith(".vtt")]
         if not vtt_files:
-            stderr = result.stderr or ""
-            if "No video" in stderr or "not a" in stderr.lower():
-                raise ValueError("유효하지 않은 YouTube URL입니다.")
             raise ValueError("이 영상에서 자막을 찾을 수 없습니다. 자막이 없는 영상일 수 있습니다.")
 
         def lang_priority(f: str) -> int:
@@ -384,7 +383,9 @@ def _fetch_transcript_ytdlp(url: str) -> tuple[str, str]:
         vtt_files.sort(key=lang_priority)
         with open(os.path.join(tmpdir, vtt_files[0]), encoding="utf-8") as f:
             content = f.read()
-        return _parse_vtt(content), video_id
+
+        real_video_id = info.get("id") or video_id
+        return _parse_vtt(content), real_video_id
 
 
 @app.post("/api/lecture/youtube")
