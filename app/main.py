@@ -346,7 +346,7 @@ def _fetch_transcript_innertube(video_id: str) -> str:
         resp = session.get(init_url, headers={"User-Agent": headers["User-Agent"]}, timeout=10)
 
         # ytInitialData에서 captionTracks 추출
-        match = re.search(r'"captions":{"playerCaptionsTracklistRenderer":{"caption Tracks":\s*\[(.*?)\]', resp.text)
+        match = re.search(r'"captions":\{"playerCaptionsTracklistRenderer":\{"captionTracks":\s*\[(.*?)\]', resp.text)
         if not match:
             match = re.search(r'"captionTracks":\s*\[(.*?)\]', resp.text)
 
@@ -401,11 +401,13 @@ def _fetch_transcript_ytdlp(url: str) -> tuple[str, str]:
         import yt_dlp
         try:
             return _fetch_transcript_ytdlp_api(url, video_id, yt_dlp)
-        except Exception:
+        except Exception as e1:
+            print(f"[yt-dlp Python API 실패] {e1}", flush=True)
             if shutil.which("yt-dlp"):
                 try:
                     return _fetch_transcript_ytdlp_cli(url, video_id)
-                except Exception:
+                except Exception as e2:
+                    print(f"[yt-dlp CLI 실패] {e2}", flush=True)
                     return _fetch_transcript_youtube_api(video_id)
             return _fetch_transcript_youtube_api(video_id)
     except ModuleNotFoundError:
@@ -424,9 +426,11 @@ def _fetch_transcript_ytdlp_api(url: str, video_id: str, yt_dlp_module) -> tuple
             "subtitlesformat": "vtt",
             "skip_download": True,
             "outtmpl": out_tmpl,
-            "quiet": True,
-            "no_warnings": True,
-            "ignoreerrors": True,
+            "quiet": APP_ENV != "production",
+            "no_warnings": APP_ENV != "production",
+            "ignoreerrors": False,
+            # 클라우드 IP 차단 우회: TV/iOS 클라이언트는 web 클라이언트보다 차단율 낮음
+            "extractor_args": {"youtube": {"player_client": ["tv_embedded", "web_creator", "ios"]}},
         }
         proxy = _get_default_proxy_url()
         if proxy:
@@ -467,6 +471,8 @@ def _fetch_transcript_ytdlp_cli(url: str, video_id: str) -> tuple[str, str]:
             "vtt",
             "--skip-download",
             "--no-playlist",
+            "--extractor-args",
+            "youtube:player_client=tv_embedded,web_creator,ios",
             "-o",
             out_tmpl,
             url,
