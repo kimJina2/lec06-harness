@@ -24,12 +24,12 @@ def _fetch(video_id: str) -> str:
         f"https://www.youtube.com/watch?v={video_id}&hl=en",
         headers={"User-Agent": UA},
     )
-    with urllib.request.urlopen(req, timeout=15) as r:
+    with urllib.request.urlopen(req, timeout=20) as r:
         html = r.read().decode("utf-8", errors="ignore")
 
     m = re.search(r'"captionTracks":\s*(\[.*?\])', html)
     if not m:
-        raise ValueError("자막 없음")
+        raise ValueError("자막 없음 (captionTracks not found)")
 
     tracks = json.loads(m.group(1))
     track = next((t for t in tracks if t.get("languageCode", "").startswith("en")), None)
@@ -41,7 +41,7 @@ def _fetch(video_id: str) -> str:
     vtt_req = urllib.request.Request(
         track["baseUrl"] + "&fmt=vtt", headers={"User-Agent": UA}
     )
-    with urllib.request.urlopen(vtt_req, timeout=15) as r:
+    with urllib.request.urlopen(vtt_req, timeout=20) as r:
         vtt = r.read().decode("utf-8", errors="ignore")
 
     return _parse_vtt(vtt)
@@ -53,13 +53,18 @@ class handler(BaseHTTPRequestHandler):
         video_id = (params.get("v") or [None])[0]
 
         if not video_id:
-            self._json(400, {"error": "Missing v parameter"})
+            # 헬스체크
+            self._json(200, {"status": "ok", "usage": "?v=VIDEO_ID"})
             return
         try:
             transcript = _fetch(video_id)
             self._json(200, {"transcript": transcript, "video_id": video_id})
+        except urllib.error.HTTPError as e:
+            self._json(502, {"error": f"YouTube HTTP {e.code}: {e.reason}"})
+        except urllib.error.URLError as e:
+            self._json(502, {"error": f"YouTube 연결 실패: {e.reason}"})
         except Exception as e:
-            self._json(500, {"error": str(e)})
+            self._json(500, {"error": str(e), "type": type(e).__name__})
 
     def _json(self, code: int, body: dict):
         data = json.dumps(body, ensure_ascii=False).encode()
