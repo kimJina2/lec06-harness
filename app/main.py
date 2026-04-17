@@ -264,6 +264,34 @@ def _extract_video_id(url: str) -> str | None:
     return None
 
 
+def _get_default_proxy_url() -> str | None:
+    return (
+        os.environ.get('TRANSCRIPT_PROXY')
+        or os.environ.get('YOUTUBE_TRANSCRIPT_PROXY')
+        or os.environ.get('HTTPS_PROXY')
+        or os.environ.get('https_proxy')
+        or os.environ.get('HTTP_PROXY')
+        or os.environ.get('http_proxy')
+    )
+
+
+def _build_proxy_dict() -> dict[str, str] | None:
+    proxies: dict[str, str] = {}
+    default_proxy = _get_default_proxy_url()
+    if default_proxy:
+        proxies['http'] = default_proxy
+        proxies['https'] = default_proxy
+
+    http_proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
+    https_proxy = os.environ.get('HTTPS_PROXY') or os.environ.get('https_proxy')
+    if http_proxy:
+        proxies['http'] = http_proxy
+    if https_proxy:
+        proxies['https'] = https_proxy
+
+    return proxies or None
+
+
 def _parse_vtt(content: str) -> str:
     """VTT 자막 파일을 평문으로 변환."""
     texts = []
@@ -307,10 +335,15 @@ def _fetch_transcript_innertube(video_id: str) -> str:
         "params": f"CgIQBg%3D%3D",
     }
 
+    proxies = _build_proxy_dict()
     try:
         # captionTracks 얻기 위해 초기 요청
         init_url = f"https://www.youtube.com/watch?v={video_id}&hl=en"
-        resp = requests.get(init_url, headers={"User-Agent": headers["User-Agent"]}, timeout=10)
+        session = requests.Session()
+        if proxies:
+            session.proxies.update(proxies)
+
+        resp = session.get(init_url, headers={"User-Agent": headers["User-Agent"]}, timeout=10)
 
         # ytInitialData에서 captionTracks 추출
         match = re.search(r'"captions":{"playerCaptionsTracklistRenderer":{"caption Tracks":\s*\[(.*?)\]', resp.text)
@@ -342,13 +375,20 @@ def _fetch_transcript_innertube(video_id: str) -> str:
             raise ValueError("자막 URL을 찾을 수 없습니다")
 
         # VTT 자막 다운로드
-        vtt_resp = requests.get(caption_url, timeout=10)
+        vtt_resp = session.get(caption_url, timeout=10)
         vtt_resp.raise_for_status()
 
         return _parse_vtt(vtt_resp.text)
 
     except requests.RequestException as e:
-        raise ValueError(f"자막 요청 실패: {str(e)}")
+        msg = str(e)
+        if proxies:
+            raise ValueError(
+                f"자막 요청 실패: {msg}. 프록시를 사용 중입니다. 클라우드 IP 차단일 수 있습니다."
+            )
+        raise ValueError(
+            f"자막 요청 실패: {msg}. 클라우드 IP 차단일 수 있습니다. TRANSCRIPT_PROXY/HTTP_PROXY/HTTPS_PROXY 환경변수로 프록시를 지정해보세요."
+        )
     except (json.JSONDecodeError, KeyError, AttributeError):
         raise ValueError("자막 데이터 파싱 실패")
 
@@ -380,6 +420,9 @@ def _fetch_transcript_ytdlp_api(url: str, video_id: str, yt_dlp_module) -> tuple
             "no_warnings": True,
             "ignoreerrors": True,
         }
+        proxy = _get_default_proxy_url()
+        if proxy:
+            ydl_opts["proxy"] = proxy
 
         with yt_dlp_module.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -420,6 +463,10 @@ def _fetch_transcript_ytdlp_cli(url: str, video_id: str) -> tuple[str, str]:
             out_tmpl,
             url,
         ]
+        proxy = _get_default_proxy_url()
+        if proxy:
+            cmd.extend(["--proxy", proxy])
+
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         vtt_files = [f for f in os.listdir(tmpdir) if f.endswith(".vtt")]
         if not vtt_files:
@@ -466,22 +513,32 @@ def _fetch_transcript_youtube_api(video_id: str) -> tuple[str, str]:
         raise ValueError("yt_dlp 및 youtube-transcript-api 모두 설치되어 있지 않습니다.")
 
     try:
-        api = YouTubeTranscriptApi()
-        if hasattr(api, "fetch"):
-            transcript_list = api.fetch(
-                video_id,
-                languages=["ko", "en", "en-US", "ja", "zh-Hans"],
+        proxies = _build_proxy_dict()
+        proxy_config = None
+        if proxies:
+            from youtube_transcript_api.proxies import GenericProxyConfig
+            proxy_config = GenericProxyConfig(
+                http_url=proxies.get("http"),
+                https_url=proxies.get("https"),
             )
-        else:
-            transcript_list = api.list(video_id).find_transcript(
-                ["ko", "en", "en-US", "ja", "zh-Hans"]
-            ).fetch()
+
+        api = YouTubeTranscriptApi(proxy_config=proxy_config)
+        transcript_list = api.fetch(
+            video_id,
+            languages=["ko", "en", "en-US", "ja", "zh-Hans"],
+        )
 
         return _parse_transcript_list(transcript_list), video_id
     except (NoTranscriptFound, TranscriptsDisabled, VideoUnavailable):
         raise ValueError("이 영상에서 자막을 찾을 수 없습니다. 자막이 없는 영상일 수 있습니다.")
     except Exception as e:
-        raise ValueError(f"자막 요청 실패: {e}")
+        message = str(e)
+        if "blocked" in message.lower() or "ip" in message.lower():
+            message = (
+                f"{message}. 클라우드 IP 차단일 수 있습니다. "
+                "TRANSCRIPT_PROXY/HTTP_PROXY/HTTPS_PROXY 환경변수로 프록시를 지정해보세요."
+            )
+        raise ValueError(f"자막 요청 실패: {message}")
 
 
 @app.post("/api/lecture/youtube")
