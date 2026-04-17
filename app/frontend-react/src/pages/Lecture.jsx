@@ -82,40 +82,19 @@ export default function Lecture() {
     return texts.join(' ')
   }
 
-  async function proxyFetch(url) {
-    // allorigins: JSON 래핑 방식
-    const r1 = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`)
-    if (r1.ok) {
-      const j = await r1.json()
-      if (j?.contents) return j.contents
-    }
-    // corsproxy: 직접 방식
-    const r2 = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(url)}`)
-    if (r2.ok) return r2.text()
-    throw new Error(`프록시 접근 실패 (${r2.status})`)
-  }
-
-  async function fetchYoutubeClient(videoId) {
-    const ytUrl = `https://www.youtube.com/watch?v=${videoId}&hl=en`
-    const html  = await proxyFetch(ytUrl)
-
-    const m = html.match(/"captionTracks":\s*(\[[\s\S]*?\])\s*,\s*"/)
-    if (!m) throw new Error('이 영상에 자막이 없습니다.')
-
-    const tracks = JSON.parse(m[1])
-    const track  = tracks.find(t => t.languageCode?.startsWith('en')) || tracks[0]
-    if (!track?.baseUrl) throw new Error('자막 URL을 찾을 수 없습니다.')
-
-    const vtt = await proxyFetch(track.baseUrl + '&fmt=vtt')
-    return { transcript: parseVtt(vtt), videoId }
-  }
+  const CF_WORKER = 'https://lec06-harness.heykim28.workers.dev'
 
   async function fetchYoutube() {
     if (!youtubeUrl.trim()) return
+    const videoId = extractVideoId(youtubeUrl)
+    if (!videoId) {
+      setYoutubeError('유효하지 않은 YouTube URL입니다.')
+      return
+    }
     setYoutubeLoading(true)
     setYoutubeError('')
 
-    // 1차: 서버 API (로컬에서는 동작, 클라우드에서는 IP 차단될 수 있음)
+    // 1차: Render 서버 API
     try {
       const res  = await fetch('/api/lecture/youtube', {
         method: 'POST',
@@ -133,19 +112,27 @@ export default function Lecture() {
         setYoutubeLoading(false)
         return
       }
-    } catch { /* 서버 실패 시 브라우저 방식으로 폴백 */ }
+    } catch { /* 폴백 */ }
 
-    // 2차: 브라우저에서 직접 가져오기 (IP 차단 우회)
+    // 2차: Cloudflare Worker (브라우저에서 직접 호출)
     try {
-      const videoId = extractVideoId(youtubeUrl)
-      if (!videoId) throw new Error('유효하지 않은 YouTube URL입니다.')
-      const { transcript: t, videoId: vid } = await fetchYoutubeClient(videoId)
-      setTranscript(t)
-      setVideoInfo({ id: vid, preview: t.slice(0, 200) + '...', length: t.length })
-    } catch (e) {
-      setYoutubeError(e.message)
-    }
+      const res  = await fetch(`${CF_WORKER}?v=${videoId}`)
+      const data = await res.json()
+      if (data.transcript) {
+        setTranscript(data.transcript)
+        setVideoInfo({ id: videoId, preview: data.transcript.slice(0, 200) + '...', length: data.transcript.length })
+        setYoutubeLoading(false)
+        return
+      }
+    } catch { /* 폴백 */ }
 
+    // 모두 실패 → 수동 입력 안내
+    setYoutubeError(
+      'YouTube 자막을 자동으로 가져올 수 없습니다. ' +
+      '아래 방법으로 자막을 직접 붙여넣어 주세요:\n' +
+      '① YouTube에서 영상 재생 → 영상 아래 ⋯ → "스크립트 열기"\n' +
+      '② 텍스트 전체 복사 → 아래 입력창에 붙여넣기'
+    )
     setYoutubeLoading(false)
   }
 
@@ -277,7 +264,9 @@ export default function Lecture() {
               </button>
             </div>
 
-            {youtubeError && <div className="error-msg">{youtubeError}</div>}
+            {youtubeError && (
+              <div className="error-msg" style={{ whiteSpace: 'pre-line' }}>{youtubeError}</div>
+            )}
 
             {/* 영상 미리보기 */}
             {videoInfo && (
