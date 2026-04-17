@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import asyncio
 from fastapi import FastAPI, Request
@@ -24,7 +25,7 @@ if APP_ENV == "production":
         base_url="https://openrouter.ai/api/v1",
         api_key=os.environ.get("OPENROUTER_API_KEY", ""),
     )
-    MODEL = "anthropic/claude-haiku-4-5-20251001"
+    MODEL = "anthropic/claude-haiku-4.5"
 else:
     # 로컬: Groq (무료, 빠름 — https://console.groq.com 에서 키 발급)
     client = OpenAI(
@@ -272,7 +273,7 @@ def _fetch_transcript_ytdlp(url: str) -> tuple[str, str]:
         out_tmpl = os.path.join(tmpdir, "%(id)s")
         result = subprocess.run(
             [
-                "yt-dlp",
+                sys.executable, "-m", "yt_dlp",
                 "--write-auto-sub", "--write-sub",
                 "--sub-lang", "ko,en,en-US,ja,zh-Hans",
                 "--sub-format", "vtt",
