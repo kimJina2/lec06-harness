@@ -23,7 +23,7 @@ if APP_ENV == "production":
         base_url="https://openrouter.ai/api/v1",
         api_key=os.environ.get("OPENROUTER_API_KEY", ""),
     )
-    MODEL = "anthropic/claude-haiku-4-5"
+    MODEL = "anthropic/claude-haiku-4-5-20251001"
 else:
     # 로컬: Groq (무료, 빠름 — https://console.groq.com 에서 키 발급)
     client = OpenAI(
