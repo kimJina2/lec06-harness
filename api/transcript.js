@@ -5,58 +5,41 @@ export default async function handler(req, res) {
 
   const errors = [];
 
-  // 시도 1: TV embedded 클라이언트
+  // 시도 1: timedtext 직접 (lang=en)
+  for (const lang of ["en", "en-US", "ko", ""]) {
+    try {
+      const url = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${lang}&fmt=vtt`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const vtt = await r.text();
+      if (vtt.includes("WEBVTT")) {
+        return res.json({ transcript: parseVtt(vtt), video_id: videoId });
+      }
+    } catch (e) { errors.push(`timedtext-${lang}:${e.message}`); }
+  }
+
+  // 시도 2: TV embedded InnerTube — 구조 디버그
   try {
-    const t = await fetchInnertube(videoId, "TVHTML5_SIMPLY_EMBEDDED_PLAYER", "2.0");
-    return res.json({ transcript: t, video_id: videoId });
+    const resp = await fetch("https://www.youtube.com/youtubei/v1/player", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        videoId,
+        context: { client: { clientName: "TVHTML5_SIMPLY_EMBEDDED_PLAYER", clientVersion: "2.0", hl: "en" } },
+      }),
+    });
+    const data = await resp.json();
+    const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    if (tracks?.length) {
+      const track = tracks.find(t => t.languageCode?.startsWith("en")) || tracks[0];
+      const vtt = await (await fetch(track.baseUrl + "&fmt=vtt")).text();
+      return res.json({ transcript: parseVtt(vtt), video_id: videoId });
+    }
+    // 디버그: 응답 키 확인
+    errors.push("TV:keys=" + Object.keys(data).join(","));
   } catch (e) { errors.push("TV:" + e.message); }
 
-  // 시도 2: iOS 클라이언트
-  try {
-    const t = await fetchInnertube(videoId, "IOS", "19.09.3");
-    return res.json({ transcript: t, video_id: videoId });
-  } catch (e) { errors.push("iOS:" + e.message); }
-
-  // 시도 3: timedtext 직접 접근
-  try {
-    const t = await fetchTimedtext(videoId);
-    return res.json({ transcript: t, video_id: videoId });
-  } catch (e) { errors.push("timedtext:" + e.message); }
-
   res.status(500).json({ error: errors.join(" | ") });
-}
-
-async function fetchInnertube(videoId, clientName, clientVersion) {
-  const resp = await fetch("https://www.youtube.com/youtubei/v1/player", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      videoId,
-      context: { client: { clientName, clientVersion, hl: "en" } },
-    }),
-  });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const data = await resp.json();
-  const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-  if (!tracks?.length) throw new Error("자막 없음");
-  const track = tracks.find(t => t.languageCode?.startsWith("en")) || tracks[0];
-  if (!track?.baseUrl) throw new Error("URL 없음");
-  const vtt = await (await fetch(track.baseUrl + "&fmt=vtt")).text();
-  return parseVtt(vtt);
-}
-
-async function fetchTimedtext(videoId) {
-  // 자막 목록 먼저 가져오기
-  const listResp = await fetch(
-    `https://www.youtube.com/api/timedtext?v=${videoId}&type=list&fmt=json3`
-  );
-  if (!listResp.ok) throw new Error(`HTTP ${listResp.status}`);
-  const list = await listResp.json();
-  const tracks = list?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-  if (!tracks?.length) throw new Error("자막 없음");
-  const track = tracks.find(t => t.languageCode?.startsWith("en")) || tracks[0];
-  const vtt = await (await fetch(track.baseUrl + "&fmt=vtt")).text();
-  return parseVtt(vtt);
 }
 
 function parseVtt(vtt) {
