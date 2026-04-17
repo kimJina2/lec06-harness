@@ -527,6 +527,23 @@ def _parse_transcript_list(transcript_list) -> str:
     return " ".join(texts)
 
 
+def _fetch_transcript_vercel(video_id: str) -> tuple[str, str]:
+    """Vercel 서버리스 함수 경유 — Vercel 엣지 IP는 YouTube에 차단되지 않음."""
+    worker_url = os.environ.get("YT_WORKER_URL", "").rstrip("/")
+    if not worker_url:
+        raise ValueError("YT_WORKER_URL 환경변수가 설정되지 않았습니다.")
+
+    resp = requests.get(f"{worker_url}/api/transcript", params={"v": video_id}, timeout=30)
+    if resp.status_code == 500:
+        raise ValueError(resp.json().get("error", "Vercel 오류"))
+    resp.raise_for_status()
+    data = resp.json()
+    transcript = data.get("transcript", "")
+    if not transcript:
+        raise ValueError("자막 없음")
+    return transcript, video_id
+
+
 def _fetch_transcript_supadata(video_id: str) -> tuple[str, str]:
     """Supadata API로 자막 가져오기 — 클라우드 IP 차단을 우회하는 전용 서비스."""
     api_key = os.environ.get("SUPADATA_API_KEY")
@@ -624,15 +641,24 @@ async def fetch_youtube_transcript(req: YouTubeRequest):
     except Exception as e2:
         print(f"[yt-dlp 폴백 실패] {e2}", flush=True)
 
-    # Supadata 폴백 (클라우드 IP 차단 우회 전용)
+    # Vercel 서버리스 폴백
+    try:
+        transcript, vid = await loop.run_in_executor(
+            None, _fetch_transcript_vercel, video_id
+        )
+        return {"transcript": transcript, "video_id": vid}
+    except Exception as e3:
+        print(f"[Vercel 폴백 실패] {e3}", flush=True)
+
+    # Supadata 폴백
     try:
         transcript, vid = await loop.run_in_executor(
             None, _fetch_transcript_supadata, video_id
         )
         return {"transcript": transcript, "video_id": vid}
-    except Exception as e3:
-        print(f"[Supadata 폴백 실패] {e3}", flush=True)
-        return {"error": str(e3)}
+    except Exception as e4:
+        print(f"[Supadata 폴백 실패] {e4}", flush=True)
+        return {"error": str(e4)}
 
 
 @app.post("/api/lecture/analyze")
