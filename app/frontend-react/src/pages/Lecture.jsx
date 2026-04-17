@@ -56,11 +56,57 @@ export default function Lecture() {
   }
 
   // ── YouTube 자막 ──────────────────────────────────────────────────
+  function extractVideoId(url) {
+    try {
+      url = url.trim()
+      if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url)) url = 'https://' + url
+      const p = new URL(url)
+      if (p.hostname.endsWith('youtu.be')) return p.pathname.slice(1).split('/')[0] || null
+      if (p.hostname.includes('youtube.com')) {
+        if (p.searchParams.get('v')) return p.searchParams.get('v')
+        const seg = p.pathname.split('/').filter(Boolean)
+        if (seg[0] === 'embed' || seg[0] === 'shorts') return seg[1] || null
+      }
+    } catch { /* ignore */ }
+    return null
+  }
+
+  function parseVtt(vtt) {
+    const texts = []
+    for (const raw of vtt.split('\n')) {
+      const line = raw.trim()
+      if (!line || line.includes('-->') || line.startsWith('WEBVTT') || /^\d+$/.test(line)) continue
+      const text = line.replace(/<[^>]+>/g, '').trim()
+      if (text && texts[texts.length - 1] !== text) texts.push(text)
+    }
+    return texts.join(' ')
+  }
+
+  async function fetchYoutubeClient(videoId) {
+    const proxy = 'https://corsproxy.io/?url='
+    const ytUrl = `https://www.youtube.com/watch?v=${videoId}&hl=en`
+    const resp  = await fetch(proxy + encodeURIComponent(ytUrl))
+    if (!resp.ok) throw new Error(`YouTube 접근 실패 (${resp.status})`)
+    const html = await resp.text()
+
+    const m = html.match(/"captionTracks":\s*(\[[\s\S]*?\])\s*,\s*"/)
+    if (!m) throw new Error('이 영상에 자막이 없습니다.')
+
+    const tracks = JSON.parse(m[1])
+    const track  = tracks.find(t => t.languageCode?.startsWith('en')) || tracks[0]
+    if (!track?.baseUrl) throw new Error('자막 URL을 찾을 수 없습니다.')
+
+    const vttResp = await fetch(proxy + encodeURIComponent(track.baseUrl + '&fmt=vtt'))
+    const vtt     = await vttResp.text()
+    return { transcript: parseVtt(vtt), videoId }
+  }
+
   async function fetchYoutube() {
     if (!youtubeUrl.trim()) return
     setYoutubeLoading(true)
     setYoutubeError('')
 
+    // 1차: 서버 API (로컬에서는 동작, 클라우드에서는 IP 차단될 수 있음)
     try {
       const res  = await fetch('/api/lecture/youtube', {
         method: 'POST',
@@ -68,21 +114,27 @@ export default function Lecture() {
         body: JSON.stringify({ url: youtubeUrl }),
       })
       const data = await res.json()
-
-      if (data.error) {
-        setYoutubeError(data.error)
-      } else {
+      if (!data.error) {
         setTranscript(data.transcript)
-        if (data.video_id) {
-          setVideoInfo({
-            id:      data.video_id,
-            preview: data.transcript.slice(0, 200) + '...',
-            length:  data.transcript.length,
-          })
-        }
+        if (data.video_id) setVideoInfo({
+          id: data.video_id,
+          preview: data.transcript.slice(0, 200) + '...',
+          length: data.transcript.length,
+        })
+        setYoutubeLoading(false)
+        return
       }
+    } catch { /* 서버 실패 시 브라우저 방식으로 폴백 */ }
+
+    // 2차: 브라우저에서 직접 가져오기 (IP 차단 우회)
+    try {
+      const videoId = extractVideoId(youtubeUrl)
+      if (!videoId) throw new Error('유효하지 않은 YouTube URL입니다.')
+      const { transcript: t, videoId: vid } = await fetchYoutubeClient(videoId)
+      setTranscript(t)
+      setVideoInfo({ id: vid, preview: t.slice(0, 200) + '...', length: t.length })
     } catch (e) {
-      setYoutubeError('네트워크 오류: ' + e.message)
+      setYoutubeError(e.message)
     }
 
     setYoutubeLoading(false)
