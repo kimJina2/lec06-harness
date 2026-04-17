@@ -1,6 +1,9 @@
 import os
+import sys
 import json
 import asyncio
+import shutil
+import subprocess
 import tempfile
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
@@ -353,11 +356,17 @@ def _fetch_transcript_innertube(video_id: str) -> str:
 def _fetch_transcript_ytdlp(url: str) -> tuple[str, str]:
     """yt-dlp Python API로 자막 다운로드. 클라우드 IP 차단 우회."""
     video_id = _extract_video_id(url) or "unknown"
+
     try:
         import yt_dlp
+        return _fetch_transcript_ytdlp_api(url, video_id, yt_dlp)
     except ModuleNotFoundError:
+        if shutil.which("yt-dlp"):
+            return _fetch_transcript_ytdlp_cli(url, video_id)
         return _fetch_transcript_youtube_api(video_id)
 
+
+def _fetch_transcript_ytdlp_api(url: str, video_id: str, yt_dlp_module) -> tuple[str, str]:
     with tempfile.TemporaryDirectory() as tmpdir:
         out_tmpl = os.path.join(tmpdir, "%(id)s.%(ext)s")
         ydl_opts = {
@@ -372,7 +381,7 @@ def _fetch_transcript_ytdlp(url: str) -> tuple[str, str]:
             "ignoreerrors": True,
         }
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp_module.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
 
         vtt_files = [f for f in os.listdir(tmpdir) if f.endswith(".vtt")]
@@ -390,6 +399,45 @@ def _fetch_transcript_ytdlp(url: str) -> tuple[str, str]:
 
         real_video_id = info.get("id") or video_id
         return _parse_vtt(content), real_video_id
+
+
+def _fetch_transcript_ytdlp_cli(url: str, video_id: str) -> tuple[str, str]:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out_tmpl = os.path.join(tmpdir, "%(id)s.%(ext)s")
+        cmd = [
+            sys.executable,
+            "-m",
+            "yt_dlp",
+            "--write-auto-sub",
+            "--write-sub",
+            "--sub-lang",
+            "ko,en,en-US,ja,zh-Hans",
+            "--sub-format",
+            "vtt",
+            "--skip-download",
+            "--no-playlist",
+            "-o",
+            out_tmpl,
+            url,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        vtt_files = [f for f in os.listdir(tmpdir) if f.endswith(".vtt")]
+        if not vtt_files:
+            stderr = result.stderr or result.stdout or ""
+            if "No video" in stderr or "not a" in stderr.lower():
+                raise ValueError("유효하지 않은 YouTube URL입니다.")
+            raise ValueError("이 영상에서 자막을 찾을 수 없습니다. 자막이 없는 영상일 수 있습니다.")
+
+        def lang_priority(f: str) -> int:
+            if ".ko." in f or ".ko-" in f: return 0
+            if ".en." in f or ".en-" in f: return 1
+            return 2
+
+        vtt_files.sort(key=lang_priority)
+        with open(os.path.join(tmpdir, vtt_files[0]), encoding="utf-8") as f:
+            content = f.read()
+
+        return _parse_vtt(content), video_id
 
 
 def _parse_transcript_list(transcript_list) -> str:
