@@ -392,8 +392,17 @@ def _fetch_transcript_ytdlp(url: str) -> tuple[str, str]:
         return _parse_vtt(content), real_video_id
 
 
-def _parse_transcript_list(transcript_list: list[dict]) -> str:
-    return " ".join(item.get("text", "").strip() for item in transcript_list if item.get("text"))
+def _parse_transcript_list(transcript_list) -> str:
+    texts = []
+    for item in transcript_list:
+        if isinstance(item, dict):
+            text = item.get("text", "")
+        else:
+            text = getattr(item, "text", "")
+        text = (text or "").strip()
+        if text:
+            texts.append(text)
+    return " ".join(texts)
 
 
 def _fetch_transcript_youtube_api(video_id: str) -> tuple[str, str]:
@@ -410,12 +419,7 @@ def _fetch_transcript_youtube_api(video_id: str) -> tuple[str, str]:
 
     try:
         api = YouTubeTranscriptApi()
-        if hasattr(api, "get_transcript"):
-            transcript_list = api.get_transcript(
-                video_id,
-                languages=["ko", "en", "en-US", "ja", "zh-Hans"],
-            )
-        elif hasattr(api, "fetch"):
+        if hasattr(api, "fetch"):
             transcript_list = api.fetch(
                 video_id,
                 languages=["ko", "en", "en-US", "ja", "zh-Hans"],
