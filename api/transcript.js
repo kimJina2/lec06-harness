@@ -1,56 +1,61 @@
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-
   const videoId = req.query.v;
   if (!videoId) return res.json({ status: "ok" });
 
+  const errors = [];
+
+  // 시도 1: TV embedded 클라이언트
   try {
-    const transcript = await fetchViaInnertube(videoId);
-    res.json({ transcript, video_id: videoId });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+    const t = await fetchInnertube(videoId, "TVHTML5_SIMPLY_EMBEDDED_PLAYER", "2.0");
+    return res.json({ transcript: t, video_id: videoId });
+  } catch (e) { errors.push("TV:" + e.message); }
+
+  // 시도 2: iOS 클라이언트
+  try {
+    const t = await fetchInnertube(videoId, "IOS", "19.09.3");
+    return res.json({ transcript: t, video_id: videoId });
+  } catch (e) { errors.push("iOS:" + e.message); }
+
+  // 시도 3: timedtext 직접 접근
+  try {
+    const t = await fetchTimedtext(videoId);
+    return res.json({ transcript: t, video_id: videoId });
+  } catch (e) { errors.push("timedtext:" + e.message); }
+
+  res.status(500).json({ error: errors.join(" | ") });
 }
 
-async function fetchViaInnertube(videoId) {
-  // Android 클라이언트 — 클라우드 IP에서도 차단 적음
-  const body = {
-    videoId,
-    context: {
-      client: {
-        clientName: "ANDROID",
-        clientVersion: "19.09.37",
-        androidSdkVersion: 30,
-        hl: "en",
-      },
-    },
-  };
-
-  const resp = await fetch(
-    "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip",
-        "X-YouTube-Client-Name": "3",
-        "X-YouTube-Client-Version": "19.09.37",
-      },
-      body: JSON.stringify(body),
-    }
-  );
-
-  if (!resp.ok) throw new Error(`InnerTube HTTP ${resp.status}`);
+async function fetchInnertube(videoId, clientName, clientVersion) {
+  const resp = await fetch("https://www.youtube.com/youtubei/v1/player", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      videoId,
+      context: { client: { clientName, clientVersion, hl: "en" } },
+    }),
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const data = await resp.json();
-
   const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
   if (!tracks?.length) throw new Error("자막 없음");
+  const track = tracks.find(t => t.languageCode?.startsWith("en")) || tracks[0];
+  if (!track?.baseUrl) throw new Error("URL 없음");
+  const vtt = await (await fetch(track.baseUrl + "&fmt=vtt")).text();
+  return parseVtt(vtt);
+}
 
-  const track = tracks.find((t) => t.languageCode?.startsWith("en")) || tracks[0];
-  if (!track?.baseUrl) throw new Error("자막 URL 없음");
-
-  const vttResp = await fetch(track.baseUrl + "&fmt=vtt");
-  const vtt = await vttResp.text();
+async function fetchTimedtext(videoId) {
+  // 자막 목록 먼저 가져오기
+  const listResp = await fetch(
+    `https://www.youtube.com/api/timedtext?v=${videoId}&type=list&fmt=json3`
+  );
+  if (!listResp.ok) throw new Error(`HTTP ${listResp.status}`);
+  const list = await listResp.json();
+  const tracks = list?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+  if (!tracks?.length) throw new Error("자막 없음");
+  const track = tracks.find(t => t.languageCode?.startsWith("en")) || tracks[0];
+  const vtt = await (await fetch(track.baseUrl + "&fmt=vtt")).text();
   return parseVtt(vtt);
 }
 
