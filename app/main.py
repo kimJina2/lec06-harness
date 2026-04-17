@@ -11,7 +11,6 @@ import re
 from urllib.parse import urlparse, parse_qs
 from openai import OpenAI
 import requests
-import yt_dlp
 
 app = FastAPI(title="Harness Web App")
 
@@ -354,6 +353,11 @@ def _fetch_transcript_innertube(video_id: str) -> str:
 def _fetch_transcript_ytdlp(url: str) -> tuple[str, str]:
     """yt-dlp Python API로 자막 다운로드. 클라우드 IP 차단 우회."""
     video_id = _extract_video_id(url) or "unknown"
+    try:
+        import yt_dlp
+    except ModuleNotFoundError:
+        return _fetch_transcript_youtube_api(video_id)
+
     with tempfile.TemporaryDirectory() as tmpdir:
         out_tmpl = os.path.join(tmpdir, "%(id)s.%(ext)s")
         ydl_opts = {
@@ -386,6 +390,34 @@ def _fetch_transcript_ytdlp(url: str) -> tuple[str, str]:
 
         real_video_id = info.get("id") or video_id
         return _parse_vtt(content), real_video_id
+
+
+def _parse_transcript_list(transcript_list: list[dict]) -> str:
+    return " ".join(item.get("text", "").strip() for item in transcript_list if item.get("text"))
+
+
+def _fetch_transcript_youtube_api(video_id: str) -> tuple[str, str]:
+    """youtube-transcript-api로 자막을 가져옵니다."""
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+        from youtube_transcript_api._errors import (
+            NoTranscriptFound,
+            TranscriptsDisabled,
+            VideoUnavailable,
+        )
+    except ModuleNotFoundError:
+        raise ValueError("yt_dlp 및 youtube-transcript-api 모두 설치되어 있지 않습니다.")
+
+    try:
+        transcript_list = YouTubeTranscriptApi.get_transcript(
+            video_id,
+            languages=["ko", "en", "en-US", "ja", "zh-Hans"],
+        )
+        return _parse_transcript_list(transcript_list), video_id
+    except (NoTranscriptFound, TranscriptsDisabled, VideoUnavailable):
+        raise ValueError("이 영상에서 자막을 찾을 수 없습니다. 자막이 없는 영상일 수 있습니다.")
+    except Exception as e:
+        raise ValueError(f"자막 요청 실패: {e}")
 
 
 @app.post("/api/lecture/youtube")
