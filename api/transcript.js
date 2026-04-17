@@ -22,7 +22,7 @@ async function fetchTranscript(videoId) {
   if (!resp.ok) throw new Error(`YouTube HTTP ${resp.status}`);
   const html = await resp.text();
 
-  const m = html.match(/"captionTracks":\s*(\[.*?\])/);
+  const m = html.match(/"captionTracks":\s*(\[.*?\])/s);
   if (!m) throw new Error("자막 없음");
 
   const tracks = JSON.parse(m[1]);
