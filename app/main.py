@@ -641,24 +641,8 @@ async def fetch_youtube_transcript(req: YouTubeRequest):
     except Exception as e2:
         print(f"[yt-dlp 폴백 실패] {e2}", flush=True)
 
-    # Vercel 서버리스 폴백
-    try:
-        transcript, vid = await loop.run_in_executor(
-            None, _fetch_transcript_vercel, video_id
-        )
-        return {"transcript": transcript, "video_id": vid}
-    except Exception as e3:
-        print(f"[Vercel 폴백 실패] {e3}", flush=True)
-
-    # Supadata 폴백
-    try:
-        transcript, vid = await loop.run_in_executor(
-            None, _fetch_transcript_supadata, video_id
-        )
-        return {"transcript": transcript, "video_id": vid}
-    except Exception as e4:
-        print(f"[Supadata 폴백 실패] {e4}", flush=True)
-        return {"error": str(e4)}
+    # 서버 측 모든 방법 실패 — 프론트엔드가 브라우저에서 직접 시도
+    return {"error": "server_ip_blocked"}
 
 
 @app.post("/api/lecture/analyze")
