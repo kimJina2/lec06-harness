@@ -409,10 +409,22 @@ def _fetch_transcript_youtube_api(video_id: str) -> tuple[str, str]:
         raise ValueError("yt_dlp 및 youtube-transcript-api 모두 설치되어 있지 않습니다.")
 
     try:
-        transcript_list = YouTubeTranscriptApi.get_transcript(
-            video_id,
-            languages=["ko", "en", "en-US", "ja", "zh-Hans"],
-        )
+        api = YouTubeTranscriptApi()
+        if hasattr(api, "get_transcript"):
+            transcript_list = api.get_transcript(
+                video_id,
+                languages=["ko", "en", "en-US", "ja", "zh-Hans"],
+            )
+        elif hasattr(api, "fetch"):
+            transcript_list = api.fetch(
+                video_id,
+                languages=["ko", "en", "en-US", "ja", "zh-Hans"],
+            )
+        else:
+            transcript_list = api.list(video_id).find_transcript(
+                ["ko", "en", "en-US", "ja", "zh-Hans"]
+            ).fetch()
+
         return _parse_transcript_list(transcript_list), video_id
     except (NoTranscriptFound, TranscriptsDisabled, VideoUnavailable):
         raise ValueError("이 영상에서 자막을 찾을 수 없습니다. 자막이 없는 영상일 수 있습니다.")
