@@ -6,3 +6,4 @@ __pycache__/
 .env.production
 *.log
 .DS_Store
+app/frontend-react/node_modules/

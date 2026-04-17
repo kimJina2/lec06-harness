@@ -311,22 +311,10 @@ async def lecture_ask(req: LectureAskRequest):
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-# ── Static Files & Root ───────────────────────────────────────────────────────
+# ── Static Files & SPA ───────────────────────────────────────────────────────
 
-app.mount("/static", StaticFiles(directory="frontend"), name="static")
+app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
 
-@app.get("/")
-async def root():
-    return FileResponse("frontend/index.html")
-
-@app.get("/introduce")
-async def introduce_page():
-    return FileResponse("frontend/introduce.html")
-
-@app.get("/meme")
-async def meme_page():
-    return FileResponse("frontend/meme.html")
-
-@app.get("/lecture")
-async def lecture_page():
-    return FileResponse("frontend/lecture.html")
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    return FileResponse("static/index.html")
