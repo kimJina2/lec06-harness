@@ -25,7 +25,7 @@ export default function Home() {
       <div className="hero">
         <span className="hero-deco">🌸</span>
         <span className="hero-deco">🌿</span>
-        <div className="hero-badge">🌸 Spring 2025</div>
+        <div className="hero-badge">🌸 Spring 2026</div>
         <h1 className="hero-title">Harness AI</h1>
         <p className="hero-desc">
           해외 밈·슬랭을 한국 신조어로 초월번역하고,<br />

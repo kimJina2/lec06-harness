@@ -8,9 +8,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import re
+from urllib.parse import urlparse, parse_qs
 from openai import OpenAI
-import subprocess
-import tempfile
+import requests
 
 app = FastAPI(title="Harness Web App")
 
@@ -231,15 +231,33 @@ async def meme_translate(req: MemeRequest):
 
 
 def _extract_video_id(url: str) -> str | None:
-    patterns = [
-        r"(?:youtube\.com/watch\?v=|youtu\.be/)([^&\n?#]+)",
-        r"youtube\.com/embed/([^&\n?#]+)",
-        r"youtube\.com/shorts/([^&\n?#]+)",
-    ]
-    for p in patterns:
-        m = re.search(p, url)
-        if m:
-            return m.group(1)
+    if not url:
+        return None
+
+    url = url.strip()
+    if not url:
+        return None
+
+    if not re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*://', url):
+        url = 'https://' + url
+
+    parsed = urlparse(url)
+    hostname = (parsed.hostname or '').lower()
+    path = parsed.path or ''
+
+    if hostname.endswith('youtu.be'):
+        video_id = path.lstrip('/').split('/')[0]
+        return video_id or None
+
+    if 'youtube.com' in hostname or 'youtube-nocookie.com' in hostname:
+        query = parse_qs(parsed.query)
+        if query.get('v'):
+            return query['v'][0]
+
+        path_segments = [segment for segment in path.split('/') if segment]
+        if len(path_segments) >= 2 and path_segments[0] in ('embed', 'shorts'):
+            return path_segments[1]
+
     return None
 
 
@@ -258,12 +276,78 @@ def _parse_vtt(content: str) -> str:
         text = re.sub(r"&amp;", "&", text).replace("&lt;", "<").replace("&gt;", ">").strip()
         if text:
             texts.append(text)
-    # 연속 중복 제거 (VTT 특성상 같은 줄 반복)
     deduped: list[str] = []
     for t in texts:
         if not deduped or deduped[-1] != t:
             deduped.append(t)
     return " ".join(deduped)
+
+
+def _fetch_transcript_innertube(video_id: str) -> str:
+    """YouTube InnerTube API로 자막 요청 (Android 클라이언트 위장)."""
+    url = "https://www.youtube.com/youtubei/v1/get_transcript"
+
+    headers = {
+        "User-Agent": "com.google.android.youtube/19.09.37 (Linux; U; Android 11; en_US) gzip",
+        "Content-Type": "application/json",
+    }
+
+    data = {
+        "context": {
+            "client": {
+                "clientName": "ANDROID",
+                "clientVersion": "19.09.37",
+                "osName": "Android",
+                "osVersion": "11",
+            }
+        },
+        "params": f"CgIQBg%3D%3D",
+    }
+
+    try:
+        # captionTracks 얻기 위해 초기 요청
+        init_url = f"https://www.youtube.com/watch?v={video_id}&hl=en"
+        resp = requests.get(init_url, headers={"User-Agent": headers["User-Agent"]}, timeout=10)
+
+        # ytInitialData에서 captionTracks 추출
+        match = re.search(r'"captions":{"playerCaptionsTracklistRenderer":{"caption Tracks":\s*\[(.*?)\]', resp.text)
+        if not match:
+            match = re.search(r'"captionTracks":\s*\[(.*?)\]', resp.text)
+
+        if not match:
+            raise ValueError("자막을 찾을 수 없습니다")
+
+        captions_str = "[" + match.group(1) + "]"
+        captions = json.loads(captions_str)
+
+        if not captions:
+            raise ValueError("이 영상에서 자막을 찾을 수 없습니다")
+
+        # 언어 우선순위: 한국어 > 영어 > 기타
+        def lang_priority(cap: dict) -> int:
+            lang = cap.get("languageCode", "").lower()
+            if lang.startswith("ko"):
+                return 0
+            if lang.startswith("en"):
+                return 1
+            return 2
+
+        captions.sort(key=lang_priority)
+        caption_url = captions[0].get("baseUrl")
+
+        if not caption_url:
+            raise ValueError("자막 URL을 찾을 수 없습니다")
+
+        # VTT 자막 다운로드
+        vtt_resp = requests.get(caption_url, timeout=10)
+        vtt_resp.raise_for_status()
+
+        return _parse_vtt(vtt_resp.text)
+
+    except requests.RequestException as e:
+        raise ValueError(f"자막 요청 실패: {str(e)}")
+    except (json.JSONDecodeError, KeyError, AttributeError):
+        raise ValueError("자막 데이터 파싱 실패")
 
 
 def _fetch_transcript_ytdlp(url: str) -> tuple[str, str]:
@@ -309,16 +393,20 @@ async def fetch_youtube_transcript(req: YouTubeRequest):
 
     loop = asyncio.get_event_loop()
     try:
-        transcript, vid = await loop.run_in_executor(
-            None, _fetch_transcript_ytdlp, req.url
+        # InnerTube 먼저 시도
+        transcript = await loop.run_in_executor(
+            None, _fetch_transcript_innertube, video_id
         )
-        return {"transcript": transcript, "video_id": vid}
-    except ValueError as e:
-        return {"error": str(e)}
-    except subprocess.TimeoutExpired:
-        return {"error": "자막 가져오기 시간 초과. 다시 시도해주세요."}
+        return {"transcript": transcript, "video_id": video_id}
     except Exception as e:
-        return {"error": f"자막을 가져올 수 없습니다: {str(e)}"}
+        # InnerTube 실패 시 yt-dlp 폴백
+        try:
+            transcript, vid = await loop.run_in_executor(
+                None, _fetch_transcript_ytdlp, req.url
+            )
+            return {"transcript": transcript, "video_id": vid}
+        except Exception as e2:
+            return {"error": str(e2)}
 
 
 @app.post("/api/lecture/analyze")
