@@ -623,26 +623,43 @@ async def fetch_youtube_transcript(req: YouTubeRequest):
         return {"error": "유효하지 않은 YouTube URL입니다."}
 
     loop = asyncio.get_event_loop()
-    try:
-        # InnerTube 먼저 시도
-        transcript = await loop.run_in_executor(
-            None, _fetch_transcript_innertube, video_id
-        )
-        return {"transcript": transcript, "video_id": video_id}
-    except Exception:
-        pass
+    errors: list[str] = []
 
-    # yt-dlp 폴백
-    try:
-        transcript, vid = await loop.run_in_executor(
-            None, _fetch_transcript_ytdlp, req.url
-        )
-        return {"transcript": transcript, "video_id": vid}
-    except Exception as e2:
-        print(f"[yt-dlp 폴백 실패] {e2}", flush=True)
+    # 폴백 체인 — 차단 우회 확률이 높은 순서대로 시도
+    # (1) Supadata: YouTube 자막 전용 외부 API, 클라우드 IP 차단 무관 (가장 안정적)
+    # (2) Vercel/Cloudflare Worker: 다른 IP로 우회
+    # (3) InnerTube: YouTube 비공식 API, Android 클라이언트 위장
+    # (4) yt-dlp: TV/iOS 클라이언트 추가 위장
+    # (5) youtube-transcript-api: 마지막 라이브러리 폴백
+    attempts: list[tuple[str, callable]] = [
+        ("supadata",         lambda: _fetch_transcript_supadata(video_id)),
+        ("vercel-worker",    lambda: _fetch_transcript_vercel(video_id)),
+        ("innertube",        lambda: (_fetch_transcript_innertube(video_id), video_id)),
+        ("yt-dlp",           lambda: _fetch_transcript_ytdlp(req.url)),
+        ("youtube-api",      lambda: _fetch_transcript_youtube_api(video_id)),
+    ]
 
-    # 서버 측 모든 방법 실패 — 프론트엔드가 브라우저에서 직접 시도
-    return {"error": "server_ip_blocked"}
+    for name, fn in attempts:
+        try:
+            result = await loop.run_in_executor(None, fn)
+            # 단일 문자열 반환인 InnerTube에 대비
+            if isinstance(result, tuple):
+                transcript, vid = result
+            else:
+                transcript, vid = result, video_id
+            if not transcript:
+                raise ValueError("빈 자막")
+            print(f"[자막 성공] via {name} ({len(transcript)}자)", flush=True)
+            return {"transcript": transcript, "video_id": vid, "source": name}
+        except Exception as e:
+            msg = str(e)[:120]
+            errors.append(f"{name}: {msg}")
+            print(f"[{name} 실패] {msg}", flush=True)
+            continue
+
+    # 5개 시도 모두 실패 — 프론트엔드가 사용자에게 직접 붙여넣기 안내
+    print(f"[모든 폴백 실패] {' | '.join(errors)}", flush=True)
+    return {"error": "server_ip_blocked", "attempts": errors}
 
 
 @app.post("/api/lecture/analyze")
