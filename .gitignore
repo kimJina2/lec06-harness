@@ -77,3 +77,15 @@ nbproject/
 .vercel/
 .docker/
 docker-compose.override.yml
+
+# ─── 발표/데모 산출물 (로컬에만 유지) ───────────────────────
+# 발표 슬라이드·데모 스크립트는 git에 올리지 않고 본인 PC에만 보관
+experiments/build_pptx.py
+experiments/presentation.pptx
+experiments/DEMO_SCRIPT.md
+experiments/PRESENTATION.md
+experiments/README.md
+experiments/mcp_server/demo.sh
+experiments/mcp_server/call.py
+*.pptx
+*.key
