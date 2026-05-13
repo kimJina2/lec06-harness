@@ -90,3 +90,8 @@ experiments/mcp_server/demo.sh
 experiments/mcp_server/call.py
 *.pptx
 *.key
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
