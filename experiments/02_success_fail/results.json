@@ -1,0 +1,30 @@
+[
+  {
+    "condition": "no_mcp",
+    "task": "meme_translate",
+    "input": "It's giving main character energy",
+    "output": "**해외 밈 \"It's giving main character energy\" 한국 신조어**\n\n```json\n{\n  \"원어\": \"It's giving main character energy\",\n  \"한국 신조어\": [\n    \"MC 에너지\",\n    \"주인공 에너지\",\n    \"MC感\",\n    \"주인공감\"\n  ],\n  \"설명\": \"해외 밈에서 'main character energy'는 주인공의 특유한 에너지나 캐릭터를 나타내는 말입니다. 한국 신조어에서는 주인공 에너지나 주인공 감을 뜻합니다.\",\n  \"예시\": [\n    \"이 옷은 저렴하지만 MC 에너지가 넘치네.\",\n    \"그 영화는 주인공 감에 가득차있는 것 같아.\"\n  ]\n}\n```\n\n해외 밈 \"It's giving main character energy\"가 한국 신조어로 번역된 결과입니다. 주인공 에너지나 주인공 감을 가리켜 'MC 에너지', '주인공 에너지', 'MC감', '주인공감' 등으로 사용할 수 있습니다.",
+    "latency_sec": 1.14,
+    "tokens": 312,
+    "has_structured_json": true
+  },
+  {
+    "condition": "good_mcp",
+    "task": "meme_translate",
+    "input": "It's giving main character energy",
+    "output": "{\"original\":\"It's giving main character energy\",\"analysis\":{\"literal\":\"주인공 에너지\",\"real_meaning\":\"주인공의 전제적인 존재감\",\"tone\":\"관찰과 인식의 감정\"},\"candidates\":[{\"text\":\"주얼리 에너지\",\"reason\":\"주인공을 비유적으로 나타낸 표현이지만 의미가 약간 다름.\"},{\"text\":\"주인공 에너지\",\"reason\":\"직접의 의미와 같은 표현\"}],\"final\":{\"translation\":\"주인공의 전제적인 존재감\",\"grade\":\"통과\",\"note\":\"주인공을 주름을 잡고 있는 중심으로 생각하는 표현.\"}}}",
+    "latency_sec": 1.32,
+    "tokens": 295,
+    "has_structured_json": false
+  },
+  {
+    "condition": "broken_mcp",
+    "task": "meme_translate",
+    "input": "It's giving main character energy",
+    "output": "However, I don't see a text provided to identify and correct any English grammar errors. Could you please provide the text you'd like to have corrected? I can then help identify and fix any English grammar errors present in the text.",
+    "latency_sec": 0.34,
+    "tokens": 97,
+    "has_structured_json": false,
+    "failure_type": "wrong_description"
+  }
+]
