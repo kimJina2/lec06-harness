@@ -51,14 +51,14 @@ result = sorted(items, key=lambda x: x.score, reverse=True)
   `comment_summary.md` 형식:
   ```markdown
   ## 주석 요약
-  
+
   ### 핵심 개념 목록
   - [개념1]: [한줄 설명]
   - [개념2]: [한줄 설명]
-  
+
   ### 난이도
   [입문/초급/중급/고급]
-  
+
   ### 주목할 패턴
   [코드에서 특히 설명이 필요한 부분]
   ```

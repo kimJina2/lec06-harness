@@ -67,7 +67,7 @@ skills:
 
 ## 입력/출력 프로토콜
 
-- **입력**: 
+- **입력**:
   - `_workspace/01_wsl_env_status.md` (WSL2 환경 상태)
   - 오케스트레이터의 Hermes 설치/설정 요청
 - **출력**: `_workspace/02_hermes_setup_status.md` — 설치 결과, config 내용, SOUL.md 경로
