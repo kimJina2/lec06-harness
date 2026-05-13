@@ -84,6 +84,7 @@ experiments/build_pptx.py
 experiments/presentation.pptx
 experiments/DEMO_SCRIPT.md
 experiments/PRESENTATION.md
+experiments/PRESENTATION_NOTES.md
 experiments/README.md
 experiments/mcp_server/demo.sh
 experiments/mcp_server/call.py
