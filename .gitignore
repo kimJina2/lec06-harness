@@ -1,9 +1,79 @@
+# ─── Python ─────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.egg-info/
-.env
-.env.local
-.env.production
-*.log
-.DS_Store
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ─── Node / Frontend ────────────────────────────────────────────
+node_modules/
 app/frontend-react/node_modules/
+app/frontend-react/dist/
+app/frontend-react/.vite/
+.npm/
+.pnpm-store/
+
+# ─── 환경변수·시크릿 (절대 커밋 금지) ─────────────────────────
+.env
+.env.*
+!.env.example
+!.env.sample
+*.env
+secrets.json
+secrets/
+credentials.json
+credentials/
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+*.token
+*-secret.*
+*-secrets.*
+.netrc
+.npmrc
+.pypirc
+service-account*.json
+gcp-key*.json
+aws-credentials
+.aws/
+
+# ─── 데이터셋·실험 산출물 (크기 큰 파일) ────────────────────
+*.bin
+*.tar
+*.tar.gz
+*.zip
+*.pkl
+*.ckpt
+*.safetensors
+experiments/**/results.json   # 재현 가능하니 굳이 커밋 안 해도 됨 — 단, 발표용으로 보존 중인 것은 git add -f
+!experiments/02_success_fail/results.json
+!experiments/03_orchestration/results.json
+
+# ─── 로그·캐시 ─────────────────────────────────────────────────
+*.log
+*.swp
+*.swo
+.cache/
+.tmp/
+tmp/
+
+# ─── OS / IDE ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.code-workspace
+.history/
+nbproject/
+
+# ─── Render / Vercel / Docker 로컬 빌드 ────────────────────────
+.render/
+.vercel/
+.docker/
+docker-compose.override.yml
