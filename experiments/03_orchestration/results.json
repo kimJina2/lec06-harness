@@ -1,0 +1,27 @@
+[
+  {
+    "pattern": "single",
+    "latency_sec": 1.41,
+    "total_tokens": 578,
+    "meme_output": "{\"original\":\"It's giving main character energy\",\"analysis\":{\"literal\":\"주인공 에너지\",\"real_meaning\":\"주인공으로서의 열정이나 열기를 주는 것\",\"tone\":\"관용구, 감성\"}}",
+    "lecture_output": "JSON:\n{\n\"summary\":\"\",\n\"sections\":[{\n\"index\":1,\n\"topic\":\"Transformer 아키텍처\",\n\"content\":\"\",\n\"key_terms\":[],\"importance\": \"\"},\n\"faq\":[{\n\"question\":\"Transformer 아키텍처는?\",\n\"answer_hint\":\"Transformer 아키텍처는 자기",
+    "failure_layer": null
+  },
+  {
+    "pattern": "planner_executor",
+    "latency_sec": 2.02,
+    "total_tokens": 1133,
+    "plan": "{\"steps\": [\n  {\n    \"id\": 1,\n    \"task\": \"밈 번역\",\n    \"tool\": \"AI 번역 도구\",\n    \"input\": \"\"It's giving main character energy\"\"\n  },\n  {\n    \"id\": 2,\n    \"task\": \"강의 분석\",\n    \"tool\": \"자막 분석 도구\",\n    \"inpu",
+    "meme_output": "{\"original\":\"It's giving main character energy\",\"analysis\":{\"literal\":\"주인공의 에너지를 주고 있다\",\"real_meaning\":\"주인공만큼의 인기or 감각을 주고 있다\",\"tone\":\"칭찬적\"}}",
+    "lecture_output": "JSON:\n{\n  \"title\": \"Transformer 아키텍처\",\n  \"summary\": \"트랜스포머는 자체 주의 메커니즘을 기반으로 입력 시퀀스의 모든 위치를 동시에 볼 수 있는 모델입니다.\",\n  \"sections\": [\n    {\n      \"index\": 1,\n      \"topic\": \"자체 주의 메커니즘의 개요\",\n      \"content\"",
+    "failure_layer": null
+  },
+  {
+    "pattern": "parallel_subagent",
+    "latency_sec": 4.63,
+    "total_tokens": 750,
+    "meme_output": "{\"original\":\"It's giving main character energy\",\"analysis\":{\"literal\":\"이미지 주인공 에너지\",\"real_meaning\":\"주인공 같은 에너지\",\"tone\":\"관찰자에 대한 감정을 표현\"}}",
+    "lecture_output": "JSON:\n{\"title\":\"트랜스포머 아키텍처\",\"summary\":\"트랜스포머 아키텍처는 시퀀스 기반 입력 데이터를 처리하는 데 사용되며, 시퀀스 전체를 한번에 보고 처리하는 특징이 있습니다.\",\"sections\":[{\"index\":1,\"topic\":\"자세한내용\",\"content\":\"트랜스포머는 RNN과 달리 연속적으로 데이터를 입력받지 않고 데이터의 모",
+    "failure_layer": null
+  }
+]
