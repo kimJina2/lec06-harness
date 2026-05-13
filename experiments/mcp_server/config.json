@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "lec06-harness": {
+      "command": "python",
+      "args": ["server.py"],
+      "cwd": "experiments/mcp_server",
+      "env": {
+        "GROQ_API_KEY": "${GROQ_API_KEY}",
+        "VLLM_BASE_URL": "${VLLM_BASE_URL}"
+      }
+    },
+    "lec06-harness-broken": {
+      "command": "python",
+      "args": ["server_broken.py"],
+      "cwd": "experiments/mcp_server",
+      "env": {
+        "GROQ_API_KEY": "${GROQ_API_KEY}"
+      }
+    }
+  }
+}
