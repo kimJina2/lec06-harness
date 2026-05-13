@@ -1,0 +1,45 @@
+# pre-commit hooks — 커밋 전 자동 검사
+# https://pre-commit.com
+#
+# 설치:
+#   pip install --user pre-commit detect-secrets
+#   pre-commit install            # git hook 등록 (1회만)
+#   detect-secrets scan > .secrets.baseline  # 베이스라인 생성 (1회만)
+#
+# 수동 전체 스캔:
+#   pre-commit run --all-files
+
+repos:
+  # ─── 시크릿 탐지 (가장 중요) ────────────────────────────────
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args:
+          - "--baseline"
+          - ".secrets.baseline"
+        exclude: |
+          (?x)^(
+            \.secrets\.baseline|
+            app/frontend-react/package-lock\.json|
+            .*\.lock$
+          )$
+
+  # ─── 기본 안전장치 (오타·이슈 차단) ────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      # 큰 파일 차단 (실수로 모델·데이터셋 커밋 방지)
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      # 머지 충돌 마커 (<<<<<<<) 잔존 차단
+      - id: check-merge-conflict
+      # 사설 키 파일 차단 (RSA, ssh, pgp)
+      - id: detect-private-key
+      # JSON·YAML 문법 검증
+      - id: check-json
+        exclude: ^app/frontend-react/  # tsconfig는 주석 있어서 강한 JSON 검증 안 됨
+      - id: check-yaml
+      # 줄 끝 정리 (선택, 노이즈 줄이는 효과)
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
